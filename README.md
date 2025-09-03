@@ -53,14 +53,14 @@ SAML login, LMS integration, admin panel, advanced analytics
 7. **Project Management** – Sprint planning, GitHub repo/branch strategy, coordination
 
 ### Work Distribution:
-Probable split: 2 frontend, 3 backend and 2 database
+Probable split: 2 frontend, 3 backend and 2 database. Brackets are based on previous poll.
 
-- Mariska:
-- Eugene:
-- Alfred:
-- Antonet:
-- Ruan:
-- Yibanathi:
+- Mariska: (front end, backend)
+- Eugene: (backend)
+- Alfred: (backend)
+- Antonet: (SQL, front end)
+- Ruan: (backend, front end)
+- Yibanathi: (SQL, Security)
 - Chris: 
 
 ---
