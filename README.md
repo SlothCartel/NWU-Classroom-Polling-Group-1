@@ -6,6 +6,21 @@
 
 **Goal:** Deliver a working **guest-mode polling flow** (live demo-ready).
 
+#### MOSCOW Breakdown
+
+| FR-ID | Title         | Description                                                                 | Priority   |
+|-------|---------------|-----------------------------------------------------------------------------|------------|
+| FR-01 | Create Poll   | The lecturer creates a questionnaire                                        | 🟥 Must    |
+| FR-02 | Start Poll    | The system generates a six-character code and opens a WebSocket room        | 🟥 Must    |
+| FR-03 | Guest Vote    | The student enters the code, selects the answer(s), and receives ack        | 🟥 Must    |
+| FR-04 | Live Chart    | System streams tally; the lecturer can hide/reveal                          | 🟥 Must    |
+| FR-05 | Quiz Mode     | Lecturer designates correct answers; system calculates scores & exports CSV | 🟧 Should  |
+| FR-06 | SAML Login    | SAFIRE SSO for lecturers (bonus)                                            | 🟨 Could   |
+| FR-07 | Data Export   | System exports participation logs & aggregated responses in CSV format      | 🟧 Should  |
+| FR-08 | Responsive UI | Interfaces adapt to mobile, tablet, and desktop resolutions                 | 🟧 Should  |
+| FR-09 | WCAG 2.1      | Ensures the application meets accessibility standards (global standard)     | 🟧 Should  |
+
+
 ### Lecturer
 - Create poll (≤ 5 options)
 - Start poll → join code generated
@@ -50,4 +65,6 @@ Probable split: 2 frontend, 3 backend and 2 database
 -  v/ Repo is set up by FC so check if he invited everyone
 - ✅ Define "Done": reviewed, tested, deployed to staging  
 - ✅ Draft UAT test cases from functional requirements  
-- ✅ Plan Sprint 1 (2–3 weeks): deliver guest polling demo 
+- ✅ Plan Sprint 1 (2–3 weeks): deliver guest polling demo
+
+**DEADLINE IS 29 SEPT - 3 OCT**
