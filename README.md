@@ -52,7 +52,16 @@ SAML login, LMS integration, admin panel, advanced analytics
 6. **Compliance / Security** – POPIA checks, PII handling  
 7. **Project Management** – Sprint planning, GitHub repo/branch strategy, coordination
 
+### Work Distribution:
 Probable split: 2 frontend, 3 backend and 2 database
+
+Mariska: 
+Eugene: 
+Alfred:
+Antonet:
+Ruan: 
+Yibanathi: 
+Chris: 
 
 ---
 
