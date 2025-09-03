@@ -55,13 +55,13 @@ SAML login, LMS integration, admin panel, advanced analytics
 ### Work Distribution:
 Probable split: 2 frontend, 3 backend and 2 database
 
-Mariska: 
-Eugene: 
-Alfred:
-Antonet:
-Ruan: 
-Yibanathi: 
-Chris: 
+- Mariska:
+- Eugene:
+- Alfred:
+- Antonet:
+- Ruan:
+- Yibanathi:
+- Chris: 
 
 ---
 
