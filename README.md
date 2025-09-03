@@ -35,7 +35,9 @@ SAML login, LMS integration, admin panel, advanced analytics
 4. **DevOps** – Azure App Service, PostgreSQL, Redis, Docker, GitHub Actions CI/CD  
 5. **Testing / QA** – Cypress E2E (poll creation, voting, export), k6 load tests (TBD)  
 6. **Compliance / Security** – POPIA checks, PII handling  
-7. **Project Management** – Sprint planning, GitHub repo/branch strategy, coordination  
+7. **Project Management** – Sprint planning, GitHub repo/branch strategy, coordination
+
+Probable split: 2 frontend, 3 backend and 2 database
 
 ---
 
@@ -44,7 +46,8 @@ SAML login, LMS integration, admin panel, advanced analytics
 - ✅ Confirm scope: guest poll flow only  
 - ✅ Lock in tech stack: **React + Node/Express + Socket.io + PostgreSQL + Redis + Azure**  
 - ✅ Assign roles (see workload split)  
-- ✅ Setup GitHub repo + branching strategy (`main`, `dev`, `feature/*`)  
+- ✅ Setup GitHub repo + branching strategy (`main`, `dev`, `feature/*`)
+-  v/ Repo is set up by FC so check if he invited everyone
 - ✅ Define "Done": reviewed, tested, deployed to staging  
 - ✅ Draft UAT test cases from functional requirements  
-- ✅ Plan Sprint 1 (2–3 weeks): deliver guest polling demo  
+- ✅ Plan Sprint 1 (2–3 weeks): deliver guest polling demo 
