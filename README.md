@@ -55,20 +55,22 @@ SAML login, LMS integration, admin panel, advanced analytics
 ### Work Distribution:
 Probable split: 2 frontend, 3 backend and 2 database. Brackets are based on previous poll.
 
-- Mariska: (front end, backend)
-- Eugene: (backend)
-- Alfred: (backend)
-- Antonet: (SQL, front end)
-- Ruan: (backend, front end)
-- Yibanathi: (SQL, Security)
-- Chris: 
+- Mariska: backend 
+- Eugene: DevOps, backend 
+- Alfred: front end 
+- Antonet: SQL 
+- Ruan: frontend
+- Yibanathi: sql 
+- Chris: backend, front end
 
 ---
 
 ## 3. Key Notes for Meeting
 
 - ✅ Confirm scope: guest poll flow only  
-- ✅ Lock in tech stack: **React + Node/Express + Socket.io + PostgreSQL + Redis + Azure**  
+- v/ Front end Tech: React
+- v/ Back end Tech:  Node/Express + Socket.io
+- v/ SQL Tech: PostgreSQL
 - ✅ Assign roles (see workload split)  
 - ✅ Setup GitHub repo + branching strategy (`main`, `dev`, `feature/*`)
 -  v/ Repo is set up by FC so check if he invited everyone
