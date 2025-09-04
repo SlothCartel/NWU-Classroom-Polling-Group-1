@@ -1,81 +1,83 @@
-# NWU-Classroom-Polling-Group-1
+# 📊 NWU Classroom Polling – Group 1
 
-# Meeting 1 Discussion topics
+## 📝 Meeting 1: Discussion Summary
 
-## 1. UAT Prototype Scope
+### 🎯 UAT Prototype Scope  
+**Goal:** Deliver a working **guest-mode polling flow** (ready for live demo).  
 
-**Goal:** Deliver a working **guest-mode polling flow** (live demo-ready).
+---
 
-#### MOSCOW Breakdown
+### 🔑 Functional Requirements (MoSCoW)
 
 | FR-ID | Title         | Description                                                                 | Priority   |
 |-------|---------------|-----------------------------------------------------------------------------|------------|
-| FR-01 | Create Poll   | The lecturer creates a questionnaire                                        | 🟥 Must    |
-| FR-02 | Start Poll    | The system generates a six-character code and opens a WebSocket room        | 🟥 Must    |
-| FR-03 | Guest Vote    | The student enters the code, selects the answer(s), and receives ack        | 🟥 Must    |
-| FR-04 | Live Chart    | System streams tally; the lecturer can hide/reveal                          | 🟥 Must    |
-| FR-05 | Quiz Mode     | Lecturer designates correct answers; system calculates scores & exports CSV | 🟧 Should  |
-| FR-06 | SAML Login    | SAFIRE SSO for lecturers (bonus)                                            | 🟨 Could   |
-| FR-07 | Data Export   | System exports participation logs & aggregated responses in CSV format      | 🟧 Should  |
-| FR-08 | Responsive UI | Interfaces adapt to mobile, tablet, and desktop resolutions                 | 🟧 Should  |
-| FR-09 | WCAG 2.1      | Ensures the application meets accessibility standards (global standard)     | 🟧 Should  |
-
-
-### Lecturer
-- Create poll (≤ 5 options)
-- Start poll → join code generated
-- View live results, hide/reveal charts
-- Export results (CSV/JSON)
-
-### Student
-- Join poll via code
-- Submit vote (acknowledged < 1s)
-- View live chart updates
-
-### System
-- Aggregate analytics
-- Responsive UI (desktop & mobile)
-- POPIA-compliant data handling
-
-**Out of scope for UAT:**  
-SAML login, LMS integration, admin panel, advanced analytics
+| FR-01 | **Create Poll**   | Lecturer creates a questionnaire (≤ 5 options)                           | 🟥 Must    |
+| FR-02 | **Start Poll**    | System generates a six-character code & opens a WebSocket room           | 🟥 Must    |
+| FR-03 | **Guest Vote**    | Student enters code, submits vote, receives acknowledgment (<1s)         | 🟥 Must    |
+| FR-04 | **Live Chart**    | System streams tally; lecturer can hide/reveal                           | 🟥 Must    |
+| FR-05 | **Quiz Mode**     | Lecturer sets correct answers; system scores & exports CSV               | 🟧 Should  |
+| FR-06 | **SAML Login**    | SAFIRE SSO for lecturers (bonus)                                         | 🟨 Could   |
+| FR-07 | **Data Export**   | Exports participation logs & aggregated responses (CSV/JSON)             | 🟧 Should  |
+| FR-08 | **Responsive UI** | UI adapts to mobile, tablet, desktop                                     | 🟧 Should  |
+| FR-09 | **WCAG 2.1**      | Meets accessibility standards (global)                                   | 🟧 Should  |
 
 ---
 
-## 2. Workload Split
+### 👨‍🏫 Lecturer Features
+- Create polls (≤ 5 options)  
+- Start poll → system generates join code  
+- View live results, hide/reveal charts  
+- Export results (CSV/JSON)  
 
+### 👩‍🎓 Student Features
+- Join poll with code  
+- Submit vote (acknowledged in <1s)  
+- See live chart updates  
+
+### ⚙️ System Features
+- Real-time analytics & aggregation  
+- Responsive across devices  
+- POPIA-compliant data handling  
+
+🚫 **Out of Scope for UAT:**  
+SAML login, LMS integration, admin panel, advanced analytics  
+
+---
+
+## 🛠️ Workload Distribution
+
+**Main Areas:**  
 1. **Frontend** – Lecturer dashboard, student join page, charts, responsive UI  
 2. **Backend** – REST APIs, WebSocket vote handling, validation  
-3. **Database** – PostgreSQL schema, constraints, Redis → DB persistence  
-4. **DevOps** – Azure App Service, PostgreSQL, Redis, Docker, GitHub Actions CI/CD  
-5. **Testing / QA** – Cypress E2E (poll creation, voting, export), k6 load tests (TBD)  
-6. **Compliance / Security** – POPIA checks, PII handling  
-7. **Project Management** – Sprint planning, GitHub repo/branch strategy, coordination
+3. **Database** – PostgreSQL schema, constraints, Redis persistence  
+4. **DevOps** – Azure App Service, PostgreSQL, Redis, Docker, GitHub Actions (CI/CD)  
+5. **Testing / QA** – Cypress E2E, k6 load tests (TBD)  
+6. **Compliance / Security** – POPIA & PII handling  
+7. **Project Management** – Sprint planning, repo strategy, coordination  
 
-### Work Distribution:
-Probable split: 2 frontend, 3 backend and 2 database. Brackets are based on previous poll.
-
-- Mariska: backend 
-- Eugene: DevOps, backend 
-- Alfred: front end 
-- Antonet: SQL 
-- Ruan: frontend
-- Yibanathi: sql 
-- Chris: backend, front end
+**Proposed Split:**  
+- Mariska → Backend  
+- Eugene → DevOps + Backend  
+- Alfred → Frontend  
+- Antonet → SQL  
+- Ruan → Frontend  
+- Yibanathi → SQL  
+- Chris → Backend + Frontend  
 
 ---
 
-## 3. Key Notes for Meeting
+## 📌 Key Meeting Notes
 
-- ✅ Confirm scope: guest poll flow only  
-- v/ Front end Tech: React
-- v/ Back end Tech:  Node/Express + Socket.io
-- v/ SQL Tech: PostgreSQL
-- ✅ Assign roles (see workload split)  
-- ✅ Setup GitHub repo + branching strategy (`main`, `dev`, `feature/*`)
--  v/ Repo is set up by FC so check if he invited everyone
-- ✅ Define "Done": reviewed, tested, deployed to staging  
-- ✅ Draft UAT test cases from functional requirements  
-- ✅ Plan Sprint 1 (2–3 weeks): deliver guest polling demo
+- ✅ Scope confirmed: **guest poll flow only**  
+- ✅ Tech stack agreed:  
+  - Frontend → React  
+  - Backend → Node/Express + Socket.io  
+  - Database → PostgreSQL  
+- ✅ Roles assigned (see workload split)  
+- ✅ GitHub repo + branching strategy: `main`, `dev`, `feature/*`  
+- ⚠️ Repo is managed by FC – confirm team invites  
+- ✅ Definition of "Done": reviewed, tested, deployed to staging  
+- ✅ UAT test cases to be drafted from functional requirements  
+- ✅ Sprint 1 (2–3 weeks): deliver **guest polling demo**  
 
-**DEADLINE IS 29 SEPT - 3 OCT**
+📅 **Deadline:** **29 Sept – 3 Oct**  
