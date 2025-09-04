@@ -11,10 +11,7 @@ app.use(cors());
 
 // HTML hello world
 app.get("/", (_req, res) => {
-  res
-    .status(200)
-    .type("html")
-    .send(`<!doctype html>
+  res.status(200).type("html").send(`<!doctype html>
 <html lang="en">
 <head><meta charset="UTF-8" /><title>API Hello</title>
 <style>body{font-family:system-ui;margin:2rem}</style></head>
@@ -37,6 +34,6 @@ io.on("connection", (socket) => {
   socket.emit("hello", { msg: "socket.io connected" });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`API listening on :${PORT}`);
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`API listening on 0.0.0.0:${PORT}`);
 });

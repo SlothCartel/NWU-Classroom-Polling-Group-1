@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host",
     "lint": "eslint . --ext .ts,.tsx",
@@ -23,6 +23,7 @@
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
+    "@vitejs/plugin-react": "^5.0.2",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "eslint-config-prettier": "^9.1.2",
