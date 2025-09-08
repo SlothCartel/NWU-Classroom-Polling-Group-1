@@ -104,28 +104,40 @@
 <details>
 <summary>✅ Agenda</summary>
 
-1. **Recap of Previous Meeting**  
-   - Team familiarized themselves with assigned technologies  
-   - Docker environment set up  
-   - Frontend team drafted initial UI designs  
+---
 
-2. **Review Frontend Designs**  
-   - Alfred, Ruan & Chris present drafted UI  
-   - Group discussion → confirm layout, colors, navigation  
-   - Decide on **minimum viable UI** for UAT demo (focus on “Should” items in MoSCoW)  
+1. **Recap of Previous Meeting**
+   - Tech familiarization done  
+   - Docker Compose + project structure set up (`apps/api`, `apps/web`)  
+   - Initial frontend design ideas drafted  
 
-3. **Backend & Database Progress**  
-   - Backend (Mariska, Eugene, Chris): confirm Node + Socket.io boilerplate & Docker setup  
-   - Database (Antonet, Yibanathi): Prisma setup, ERD/schema draft (Polls, Options, Votes, Users), Redis integration  
+2. **Frontend (apps/web)**
+   - Review UI design ideas (Alfred & Ruan & CHris)  
+   - Decide on basic navigation flow (Create Poll, Join Poll, Live Results)  
+   - Confirm styling approach with Tailwind or whatever is used 
 
-4. **Integration Plan**  
-   - Define API endpoints & WebSocket handling (draft only)  
-   - Decide on Redis → PostgreSQL persistence approach  
-   - Rough architecture flow diagram  
+3. **Backend (apps/api)**
+   - Confirm Express + Prisma setup status  
+   - Decide which API endpoints are required first (`/create-poll`, `/join-poll`, `/vote`)  
+   - Clarify how WebSockets will fit into the API
 
-5. **Sprint Plan Adjustment (due to semester test)**  
-   - Focus this week on design & setup work rather than full implementation  
-   - Push working demo skeleton to next week  
+4. **Database**
+   - Review Prisma schema 
+   - Finalize tables needed for UAT (Poll, PollOption, Vote)  
+   - Plan migrations for next week  
+
+5. **DevOps**
+   - Check Docker Compose: does it run API + Web successfully?  
+   - Confirm DB/Redis containers are included or need to be added
+   - How to know where to code/everyones part
+   - Any other issues run into discussed
+
+6. **Adjust Sprint Plan (due to semester test)**
+   - Keep this week light: focus on making barebones, SQL tables set up with 1 entry each, more indepth frontend (because we have a baseline), simple navigations in backend and most important endpoints done
+   - Push feature implementation to next week after tests  
+
+---
+
 
 </details>
 
@@ -135,19 +147,23 @@
 <summary>📌 Assignments Until Next Meeting (Light Load – Test Week)</summary>
 
 - **Frontend (Alfred, Ruan, Chris)**  
-  - Finalize UI mockups & React folder/component structure  
-  - Optional: begin basic layout (navigation, empty pages)  
+  - Delve deeper into frontend (decided upon navigation, colour scheme, images, etc) 
 
 - **Backend (Mariska, Eugene, Chris)**  
-  - Set up barebones Express + Socket.io project (no logic yet)  
-  - Document planned endpoints (Create Poll, Join Poll, Vote)  
+  - Confirm API boilerplate runs inside Docker  
+  - Document planned API routes (`/create-poll`, `/join-poll`, `/vote`)  
 
 - **Database (Antonet, Yibanathi)**  
-  - Finalize ERD/schema (Poll, PollOption, Vote)  
-  - Prepare migration files (testing deferred until after semester test)  
+  - Draft Prisma schema (Poll, PollOption, Vote)  
+  - Prepare first migration file (can remain unrun until after semester week)  
+
+- **DevOps (Eugene)**  
+  - Update `docker-compose.yml` if DB/Redis not included yet  
+  - Verify frontend ↔ backend runs locally via Docker Compose
+  - //anything that might still need to be done but I think we are good
 
 - **QA / Testing (Shared)**  
-  - Draft **UAT test cases** for Create Poll + Join Poll (text only for now)  
+  - Optional: Draft test case outline for “Create Poll” flow   
 
 </details>
 
@@ -157,11 +173,10 @@
 <summary>🎯 Next Meeting Goal (Monday)</summary>
 
 By next Monday, the team should have:  
-- Agreed UI designs with React structure ready  
-- Backend & API endpoints defined (not yet fully coded)  
-- Database schema finalized & migrations drafted  
-
-👉 **Working demo skeleton shifted to the week after semester test.**  
+- Finalized UI flow and component skeletons in `apps/web`  
+- Documented API endpoints + Prisma schema ready  
+- Docker Compose working with API + Web (and DB/Redis if possible)  
+- Optional: Test case outline for Create Poll 
 
 </details>
 
