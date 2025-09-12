@@ -181,3 +181,14 @@ By next Monday, the team should have:
 </details>
 
 ---
+
+### What the hell do we need
+
+- Sign in ????
+- Lecturer sign up (save email/password)
+- Lecutrer dashboard (do we safe all previous polls)
+- Student dashboard (num polls attend)
+- Polls (ensure student can only click one answer once)
+- poll page (do we display results after every question)
+- poll page (timed or next) * quessing timed*
+- 
