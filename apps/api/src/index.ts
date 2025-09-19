@@ -4,6 +4,9 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { checkDb } from "./db.js";
 
+//Import routes
+import authRoutes from "./routes/authRoutes.js";
+
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
 const app = express();
@@ -26,6 +29,18 @@ app.get("/api/health", async (_req, res) => {
   const dbOk = await checkDb();
   res.json({ ok: true, uptime: process.uptime(), db: dbOk ? "up" : "down" });
 });
+
+//API route
+app.use("/api/auth", authRoutes);
+
+//API root endpoint
+app.get("/api", (_req, res) => {
+  res.json({
+    message: "NWU Live Poll API v1.0.0",
+    documentation: "Visit / for endpoint documentation",
+    endpoints: {
+      auth: "/api/auth"
+    }
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
