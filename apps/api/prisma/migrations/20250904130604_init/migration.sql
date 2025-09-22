@@ -52,6 +52,16 @@ CREATE TABLE "public"."Vote" (
     CONSTRAINT "Vote_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."Analytics" (
+    "id" SERIAL NOT NULL,
+    "poll_id" INTEGER NOT NULL,
+    "total_responses" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Vote_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Member_email_key" ON "public"."Member"("email");
 
@@ -72,3 +82,6 @@ ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_option_id_fkey" FOREIGN KEY ("o
 
 -- AddForeignKey
 ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."Analytics" ADD CONSTRAINT "Analytics_poll_id_fkey" FOREIGN KEY ("poll_id") REFERENCES "public"."Poll"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
