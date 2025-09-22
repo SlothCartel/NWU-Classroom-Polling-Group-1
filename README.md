@@ -182,13 +182,90 @@ By next Monday, the team should have:
 
 ---
 
-### What the hell do we need
+# Meeting 3 - Agenda and Assignments (22 Sept)
 
-- Sign in ????
-- Lecturer sign up (save email/password)
-- Lecutrer dashboard (do we safe all previous polls)
-- Student dashboard (num polls attend)
-- Polls (ensure student can only click one answer once)
-- poll page (do we display results after every question)
-- poll page (timed or next) * quessing timed*
-- 
+<details>
+<summary>🔑 Functional Requirements (MoSCoW) refresher</summary>
+
+| FR-ID  | Title         | Description                                                                                          | Priority |
+|--------|--------------|------------------------------------------------------------------------------------------------------|----------|
+| FR-01  | Create Poll  | The lecturer creates a questionnaire.                                                                 | Must     |
+| FR-02  | Start Poll   | The system generates a six-character code and opens a WebSocket room.                                 | Must     |
+| FR-03  | Guest Vote   | The student enters the code, selects the answer(s), and receives ack.                                 | Must     |
+| FR-04  | Live Chart   | System streams tally; the lecturer can hide/reveal.                                                   | Must     |
+| FR-05  | Quiz Mode    | The lecturer designates correct answers; system calculates scores and exports results in CSV format.  | Should   |
+| FR-06  | SAML Login   | SAFIRE SSO for lecturers (bonus).                                                                     | Could    |
+| FR-07  | Data Export  | System exports participation logs and aggregated responses in CSV for analysis.                       | Should   |
+| FR-08  | Responsive UI| Interfaces adapt to mobile, tablet, and desktop resolutions.                                          | Should   |
+| FR-09  | WCAG 2.1     | Ensures the application meets accessibility standards.                                                | Should   |
+
+</details>
+
+---
+
+<details>
+<summary>📌 Current Status & Issues</summary>
+
+### Database
+- ✅ Team claims database is done.  
+- ❓ Need to review what’s been implemented.  
+- ➡️ If completed, assign **additional tasks** (e.g., optimization, seed data, analytics features).  
+
+### Backend
+- Currently only has a **UserAuthentication API**.  
+- ❓ Unsure if it works (no clear testing strategy yet).  
+- ⚠️ Needs verification and additional endpoints (poll creation, voting, results, etc.).
+- Planning on having a discussion after the meeting
+
+### Frontend
+- Status **uncertain**.  
+- A wireframe was drawn up but unclear if the team followed it.  
+- ❓ Need to check progress (are the poll pages, lecturer dashboard, and student view implemented?).  
+
+</details>
+
+---
+
+<details>
+<summary>🛠️ To Be Done</summary>
+
+### Backend
+- [ ] Verify UserAuthentication API works (add tests or Postman collection).
+- [ ] Make all other API's
+- [ ] Implement **poll management endpoints** (create, start, end).  
+- [ ] Implement **voting endpoint** (student submit answer).  
+- [ ] Implement **results endpoint** (live tally + final results).  
+- [ ] Add error handling and security (rate limiting, input validation).  
+
+### Frontend
+[NWU website framewire.pdf](https://github.com/user-attachments/files/22466243/NWU.website.framewire.pdf)
+
+- [ ] Compare current UI to wireframe.  
+- [ ] Implement **lecturer dashboard** (poll creation, start poll, view results).  
+- [ ] Implement **student poll page** (code entry, voting, feedback).  
+- [ ] Ensure **responsive design** across devices.  
+- [ ] Connect frontend with backend APIs.  
+
+### Database
+- [ ] Review database schema (tables, relationships, constraints).  
+- [ ] Check if schema matches functional requirements (polls, users, votes, results).  
+- [ ] Seed test data for development/demo.  
+- [ ] If schema is fully done → assign **extra features** (e.g., analytics, export logs).  
+
+</details>
+
+---
+
+<details>
+<summary>❓ Questions I Got Along the Way</summary>
+
+- Sign in ????  
+- Lecturer sign up (save email/password)  
+- Lecturer dashboard (do we save all previous polls?)  
+- Student dashboard (track number of polls attended?)  
+- Polls (ensure student can only click one answer once)  
+- Poll page (do we display results after every question?)  
+- Poll page (timed or next? *guessing timed*)  
+
+</details>
+
