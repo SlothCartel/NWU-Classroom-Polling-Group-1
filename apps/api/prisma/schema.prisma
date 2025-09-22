@@ -50,12 +50,12 @@ model Vote {
   id          Int      @id @default(autoincrement())
   question_id Int
   option_id   Int?
-  member_id   Int
+  user_id   Int
   vote_text   String?
   created_at  DateTime @default(now())
   question    Question @relation(fields: [question_id], references: [id])
   option      Option?  @relation(fields: [option_id], references: [id])
-  member      User  @relation(fields: [member_id], references: [id])
+  user     User  @relation(fields: [user_id], references: [id])
 }
 
 //model for analytics summarizing each poll, per run or per day.
