@@ -63,7 +63,7 @@ CREATE TABLE "public"."Analytics" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Member_email_key" ON "public"."User"("email");
+CREATE UNIQUE INDEX "User_email_key" ON "public"."User"("email");
 
 -- AddForeignKey
 ALTER TABLE "public"."Poll" ADD CONSTRAINT "Poll_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
