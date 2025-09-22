@@ -1,12 +1,12 @@
 -- CreateTable
-CREATE TABLE "public"."Member" (
+CREATE TABLE "public"."User" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Member_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -45,7 +45,7 @@ CREATE TABLE "public"."Vote" (
     "id" SERIAL NOT NULL,
     "question_id" INTEGER NOT NULL,
     "option_id" INTEGER,
-    "member_id" INTEGER NOT NULL,
+    "user_id" INTEGER NOT NULL,
     "vote_text" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -63,10 +63,10 @@ CREATE TABLE "public"."Analytics" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Member_email_key" ON "public"."Member"("email");
+CREATE UNIQUE INDEX "Member_email_key" ON "public"."User"("email");
 
 -- AddForeignKey
-ALTER TABLE "public"."Poll" ADD CONSTRAINT "Poll_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Poll" ADD CONSTRAINT "Poll_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Question" ADD CONSTRAINT "Question_poll_id_fkey" FOREIGN KEY ("poll_id") REFERENCES "public"."Poll"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -81,7 +81,7 @@ ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_question_id_fkey" FOREIGN KEY (
 ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_option_id_fkey" FOREIGN KEY ("option_id") REFERENCES "public"."Option"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Vote" ADD CONSTRAINT "Vote_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Analytics" ADD CONSTRAINT "Analytics_poll_id_fkey" FOREIGN KEY ("poll_id") REFERENCES "public"."Poll"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
