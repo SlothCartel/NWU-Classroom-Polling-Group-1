@@ -2,15 +2,20 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { checkDb } from "./db.js";
+import dotenv from "dotenv";
+dotenv.config();
 
-//Import routes
-import authRoutes from "./routes/authRoutes.js";
+// Replace incorrect imports with the project's modules
+import { checkDb } from "./db";
+import { authenticate, authorize, prisma } from "./middleware/auth";
+import authRoutes from "./routes/auth";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
 const app = express();
+
 app.use(cors());
+app.use(express.json());
 
 // HTML hello world
 app.get("/", (_req, res) => {
@@ -30,6 +35,16 @@ app.get("/api/health", async (_req, res) => {
   res.json({ ok: true, uptime: process.uptime(), db: dbOk ? "up" : "down" });
 });
 
+// Example protected route
+app.get("/api/protected", authenticate, (req, res) => {
+  res.json({ message: "You are authenticated!", user: (req as any).user });
+});
+
+// Example role-protected route (uses authorize factory)
+app.get("/api/lecturer", authenticate, authorize(["LECTURER"]), (req, res) => {
+  res.json({ message: "Hello Lecturer!" });
+});
+
 //API route
 app.use("/api/auth", authRoutes);
 
@@ -41,6 +56,8 @@ app.get("/api", (_req, res) => {
     endpoints: {
       auth: "/api/auth"
     }
+  });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
@@ -50,5 +67,7 @@ io.on("connection", (socket) => {
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`API listening on 0.0.0.0:${PORT}`);
+});
   console.log(`API listening on 0.0.0.0:${PORT}`);
 });

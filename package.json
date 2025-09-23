@@ -6,6 +6,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "eslint": "^9.34.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
@@ -20,5 +22,10 @@
       "prettier --write",
       "eslint --fix"
     ]
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }

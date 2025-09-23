@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,8 +7,65 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model HealthCheck {
+model User{
   id        Int      @id @default(autoincrement())
-  label     String   @default("ok")
-  createdAt DateTime @default(now())
+  name      String
+  email     String   @unique
+  role      String
+  created_at DateTime @default(now())
+  Polls     Poll[]   @relation("CreatedPolls")
+  Votes     Vote[]
+}
+
+model Poll {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  created_by  Int
+  created_at  DateTime  @default(now())
+  expires_at  DateTime?
+  questions   Question[]
+  creator     User    @relation(fields: [created_by], references: [id], name: "CreatedPolls")
+}
+
+model Question {
+  id          Int       @id @default(autoincrement())
+  poll_id     Int
+  question_text String
+  question_type String
+  options     Option[]
+  votes       Vote[]
+  poll        Poll      @relation(fields: [poll_id], references: [id])
+}
+
+model Option {
+  id          Int      @id @default(autoincrement())
+  question_id Int
+  option_text String
+  votes       Vote[]
+  question    Question @relation(fields: [question_id], references: [id])
+}
+
+model Vote {
+  id          Int      @id @default(autoincrement())
+  question_id Int
+  option_id   Int?
+  user_id   Int
+  vote_text   String?
+  created_at  DateTime @default(now())
+  question    Question @relation(fields: [question_id], references: [id])
+  option      Option?  @relation(fields: [option_id], references: [id])
+  user     User  @relation(fields: [user_id], references: [id])
+}
+
+//model for analytics summarizing each poll, per run or per day.
+model Analytics {
+  id             Int      @id @default(autoincrement())
+  poll_id          Int    
+  total_responses Int
+  created_at DateTime @default(now())
+
+  poll           Poll     @relation(fields: [poll_id], references: [id])
+
+  @@index([poll_id, created_at])
 }
