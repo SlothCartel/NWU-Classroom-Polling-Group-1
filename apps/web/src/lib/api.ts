@@ -1,96 +1,120 @@
-import type { Poll } from "./types"
-import { publish } from "./socket"
+// src/lib/api.ts  — MOCK implementation (localStorage)
+// When you add a backend later, swap these with real fetch calls.
 
-// --- In-memory demo DB (replace with real backend later) ---
-const db: Record<string, Poll> = {}
+import type { Poll, QuizQuestion, StudentPoll } from './types'
 
-function uid(prefix = "") {
-  return (
-    prefix +
-    Math.random().toString(36).slice(2, 7) +
-    Math.random().toString(36).slice(2, 4)
-  ).toUpperCase()
-}
+/* -------------------------------------------
+   Helpers
+--------------------------------------------*/
+const LS_KEY = 'mock_polls_v1'
 
-function clone<T>(x: T): T {
-  // tiny deep clone for demo
-  return typeof structuredClone === "function"
-    ? structuredClone(x as any)
-    : JSON.parse(JSON.stringify(x))
-}
-
-function seedOnce() {
-  if (Object.keys(db).length) return
-  const p: Poll = {
-    id: "P1",
-    joinCode: "ABC123",
-    question: "Which NWU campus are you on today?",
-    status: "live",
-    options: [
-      { id: "O1", label: "Mahikeng", count: 0 },
-      { id: "O2", label: "Potchefstroom", count: 0 },
-      { id: "O3", label: "Vanderbijlpark", count: 0 }
-    ]
+function load(): Poll[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? (JSON.parse(raw) as Poll[]) : []
+  } catch {
+    return []
   }
-  db[p.id] = clone(p)
 }
-seedOnce()
 
-// ---------------- Public API used by pages ----------------
+function save(polls: Poll[]) {
+  localStorage.setItem(LS_KEY, JSON.stringify(polls))
+}
 
+function genId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+function genJoinCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
+/* -------------------------------------------
+   Lecturer/Admin endpoints (MOCK)
+--------------------------------------------*/
 export async function listPolls(): Promise<Poll[]> {
-  return Object.values(db).map(clone)
+  return load()
 }
 
-export async function createPoll(question: string, labels: string[]): Promise<Poll> {
-  const id = uid("P")
-  const joinCode = uid("").slice(0, 6)
-  const options = labels
-    .filter((s) => s.trim().length > 0)
-    .map((label) => ({ id: uid("O"), label, count: 0 }))
-
+export async function createPoll(payload: {
+  title: string
+  questions: QuizQuestion[]
+  timerSeconds: number
+  securityCode?: string
+}): Promise<Poll> {
+  const polls = load()
   const poll: Poll = {
-    id,
-    joinCode,
-    question,
-    status: "draft",
-    options
+    id: genId(),
+    joinCode: genJoinCode(),
+    title: payload.title,
+    status: 'draft',
+    questions: payload.questions,
+    timerSeconds: payload.timerSeconds,
+    securityCode: payload.securityCode,
   }
-  db[id] = poll
-  return clone(poll)
+  polls.unshift(poll)
+  save(polls)
+  return poll
+}
+
+export async function updatePoll(
+  id: string,
+  patch: Partial<Pick<Poll, 'title' | 'questions' | 'timerSeconds' | 'securityCode' | 'status'>>
+): Promise<void> {
+  const polls = load()
+  const i = polls.findIndex(p => p.id === id)
+  if (i >= 0) {
+    polls[i] = { ...polls[i], ...patch }
+    save(polls)
+  }
+}
+
+export async function deletePoll(id: string): Promise<void> {
+  const polls = load().filter(p => p.id !== id)
+  save(polls)
+}
+
+export async function openPoll(id: string): Promise<void> {
+  await updatePoll(id, { status: 'open' })
 }
 
 export async function startPoll(id: string): Promise<void> {
-  const p = db[id]
-  if (!p) return
-  p.status = "live"
-  publish(`poll:${id}`, { pollId: id })
+  await updatePoll(id, { status: 'live' })
 }
 
 export async function closePoll(id: string): Promise<void> {
-  const p = db[id]
-  if (!p) return
-  p.status = "closed"
-  publish(`poll:${id}`, { pollId: id })
+  await updatePoll(id, { status: 'closed' })
 }
 
-export async function getPollByCode(code: string): Promise<Poll | null> {
-  const byCode = Object.values(db).find(
-    (p) => p.joinCode.toUpperCase() === code.toUpperCase() && p.status === "live"
-  )
-  return byCode ? clone(byCode) : null
+/* -------------------------------------------
+   Student endpoints (MOCK)
+--------------------------------------------*/
+export async function getPollByCode(joinCode: string): Promise<StudentPoll> {
+  const polls = load()
+  const p = polls.find(x => x.joinCode.toUpperCase() === joinCode.toUpperCase())
+  if (!p) throw new Error('Poll not found')
+  if (!(p.status === 'open' || p.status === 'live')) throw new Error('Poll is not accepting joins')
+  return {
+    id: p.id,
+    joinCode: p.joinCode,
+    title: p.title,
+    status: p.status,
+    timerSeconds: p.timerSeconds,
+    questions: p.questions.map(q => ({ text: q.text, options: q.options })),
+  }
 }
 
-export async function vote(pollId: string, optionId: string): Promise<void> {
-  const p = db[pollId]
-  if (!p || p.status !== "live") return
-  const opt = p.options.find((o) => o.id === optionId)
-  if (!opt) return
-  opt.count += 1
-  publish(`poll:${pollId}`, { pollId })
-}
-
-export async function resetDemo(): Promise<void> {
-  for (const k of Object.keys(db)) delete db[k]
-  seedOnce()
+export async function submitAnswers(params: {
+  pollId: string
+  answers: number[]
+  studentNumber: string
+  securityCode?: string
+}): Promise<void> {
+  const polls = load()
+  const p = polls.find(x => x.id === params.pollId)
+  if (!p) throw new Error('Poll not found')
+  if (p.securityCode && p.securityCode !== params.securityCode) throw new Error('Invalid security code')
+  if (p.status !== 'live') throw new Error('Poll is not live')
+  return
 }
