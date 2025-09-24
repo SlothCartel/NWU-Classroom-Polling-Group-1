@@ -1,146 +1,69 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import logo from "../assets/nwu.png";
-
-type Mode = "role" | "lecturer-signin" | "lecturer-signup" | "lecturer-forgot" | "student";
+// src/pages/LoginPage.tsx
+import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { getRole, clearAuth } from '@/lib/auth'
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>("role");
-  const navigate = useNavigate();
+  const navigate = useNavigate()
 
-  // tiny helper to “log in” with a role
-  const setRoleAndGo = (role: "lecturer" | "student", to: string) => {
-    localStorage.setItem("role", role);
-    navigate(to);
-  };
+  useEffect(() => {
+    // Optional: if you want dev always to start fresh
+    clearAuth()
+
+    const role = getRole()
+    if (role === 'lecturer') navigate('/dashboard')
+    // if (role === 'student') navigate('/student') // enable if you want auto-jump
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function gotoLecturer() {
+    clearAuth() // wipe old student session
+    navigate('/lecturer-login')
+  }
+
+  function gotoStudent() {
+    clearAuth() // wipe old lecturer session
+    navigate('/student-login')
+  }
 
   return (
-    <div
-      className="flex items-center justify-center min-h-screen bg-gray-50"
-      style={{
-        backgroundImage: `url(${logo})`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "center",
-        backgroundSize: "40%",
-      }}
-    >
-      <div className="card p-6 w-full max-w-md bg-white/95">
-        {mode === "role" && (
-          <>
-            <h2 className="text-lg font-semibold mb-4 text-center">NWU Live Poll</h2>
-            <div className="flex gap-4">
-              <button className="btn-primary w-1/2" onClick={() => setMode("lecturer-signin")}>
-                Lecturer
-              </button>
-              <button className="btn-secondary w-1/2" onClick={() => setMode("student")}>
-                Student
-              </button>
-            </div>
-          </>
-        )}
+    <div className="min-h-screen flex items-center justify-center bg-purple-700 p-6">
+      <div className="w-full max-w-3xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow">
+            NWU Live Poll
+          </h1>
+          <p className="text-purple-100 mt-2">Choose your role to continue</p>
+        </div>
 
-        {mode === "lecturer-signin" && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Lecturer sign in</h3>
-            <div>
-              <label className="label">Email</label>
-              <input type="email" className="input bg-gray-100" />
+        <div className="grid md:grid-cols-2 gap-6">
+          <button
+            className="group rounded-2xl bg-white/95 hover:bg-white transition shadow-lg p-6 text-left"
+            onClick={gotoStudent}
+          >
+            <div className="text-sm font-semibold uppercase tracking-wide text-purple-700 mb-2">I’m a</div>
+            <div className="text-2xl font-bold mb-2">Student</div>
+            <p className="text-gray-600">Join a live poll and view your previous results.</p>
+            <div className="mt-5 inline-flex items-center gap-2 text-purple-700 font-semibold">
+              Go to Student
+              <span className="group-hover:translate-x-1 transition">➜</span>
             </div>
-            <div>
-              <label className="label">Password</label>
-              <input type="password" className="input bg-gray-100" />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setRoleAndGo("lecturer", "/dashboard")} // -> Dashboard
-              >
-                Sign in
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setMode("role")}>
-                Back
-              </button>
-            </div>
-            <div className="flex justify-between text-sm">
-              <button className="text-nwu-primary hover:underline" onClick={() => setMode("lecturer-forgot")}>
-                Forgot password?
-              </button>
-              <button className="text-nwu-primary hover:underline" onClick={() => setMode("lecturer-signup")}>
-                Sign up
-              </button>
-            </div>
-          </div>
-        )}
+          </button>
 
-        {mode === "lecturer-signup" && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Lecturer sign up</h3>
-            <div>
-              <label className="label">Email</label>
-              <input type="email" className="input bg-gray-100" />
+          <button
+            className="group rounded-2xl bg-white/95 hover:bg-white transition shadow-lg p-6 text-left"
+            onClick={gotoLecturer}
+          >
+            <div className="text-sm font-semibold uppercase tracking-wide text-purple-700 mb-2">I’m a</div>
+            <div className="text-2xl font-bold mb-2">Lecturer</div>
+            <p className="text-gray-600">Sign in to create polls and manage sessions.</p>
+            <div className="mt-5 inline-flex items-center gap-2 text-purple-700 font-semibold">
+              Go to Sign in
+              <span className="group-hover:translate-x-1 transition">➜</span>
             </div>
-            <div>
-              <label className="label">Password</label>
-              <input type="password" className="input bg-gray-100" />
-            </div>
-            <div>
-              <label className="label">Confirm Password</label>
-              <input type="password" className="input bg-gray-100" />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setRoleAndGo("lecturer", "/dashboard")} // -> Dashboard after signup
-              >
-                Sign up
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setMode("lecturer-signin")}>
-                Back
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "lecturer-forgot" && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Reset password</h3>
-            <div>
-              <label className="label">Email</label>
-              <input type="email" className="input bg-gray-100" />
-            </div>
-            <div className="flex gap-2">
-              <button type="button" className="btn-primary">Reset</button>
-              <button type="button" className="btn-secondary" onClick={() => setMode("lecturer-signin")}>
-                Back
-              </button>
-            </div>
-          </div>
-        )}
-
-        {mode === "student" && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Student login</h3>
-            <div>
-              <label className="label">Student Number</label>
-              <input type="text" className="input bg-gray-100" />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setRoleAndGo("student", "/join")} // -> Join
-              >
-                Continue
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setMode("role")}>
-                Back
-              </button>
-            </div>
-          </div>
-        )}
+          </button>
+        </div>
       </div>
     </div>
-  );
+  )
 }
