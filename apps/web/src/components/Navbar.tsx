@@ -26,22 +26,32 @@ function Header() {
 
         <nav className="flex gap-3 text-sm">
           {role === "student" && (
-            <NavLink className="btn-secondary" to="/join">Join</NavLink>
+            <NavLink className="btn-secondary" to="/join">
+              Join
+            </NavLink>
           )}
 
           {role === "lecturer" && (
             <>
-              <NavLink className="btn-secondary" to="/dashboard">Dashboard</NavLink>
-              <NavLink className="btn-primary" to="/admin">Admin</NavLink>
+              <NavLink className="btn-secondary" to="/dashboard">
+                Dashboard
+              </NavLink>
+              <NavLink className="btn-primary" to="/admin">
+                Admin
+              </NavLink>
             </>
           )}
 
           {!role && (
-            <NavLink className="btn-secondary" to="/">Login</NavLink>
+            <NavLink className="btn-secondary" to="/">
+              Login
+            </NavLink>
           )}
 
           {role && (
-            <button className="btn-secondary" onClick={signOut}>Sign out</button>
+            <button className="btn-secondary" onClick={signOut}>
+              Sign out
+            </button>
           )}
         </nav>
       </div>

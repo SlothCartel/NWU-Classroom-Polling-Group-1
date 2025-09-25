@@ -11,20 +11,29 @@ model User{
   id        Int      @id @default(autoincrement())
   name      String
   email     String   @unique
+  studentNumber String? @unique
+  password     String
   role      String
   created_at DateTime @default(now())
   Polls     Poll[]   @relation("CreatedPolls")
   Votes     Vote[]
+  Submissions  Submission[]
 }
 
 model Poll {
   id          Int       @id @default(autoincrement())
   title       String
   description String?
+  joinCode     String       @unique
+  status       String       @default("draft")
+  timerSeconds Int          @default(30)
+  securityCode String?
   created_by  Int
   created_at  DateTime  @default(now())
   expires_at  DateTime?
   questions   Question[]
+  analytics   Analytics[]
+  submissions  Submission[]
   creator     User    @relation(fields: [created_by], references: [id], name: "CreatedPolls")
 }
 
@@ -33,8 +42,10 @@ model Question {
   poll_id     Int
   question_text String
   question_type String
+  correctIndex  Int?
   options     Option[]
   votes       Vote[]
+  answers       Answer[]
   poll        Poll      @relation(fields: [poll_id], references: [id])
 }
 
@@ -42,7 +53,9 @@ model Option {
   id          Int      @id @default(autoincrement())
   question_id Int
   option_text String
+  optionIndex Int      // A=0, B=1, C=2, D=3
   votes       Vote[]
+  answers     Answer[]
   question    Question @relation(fields: [question_id], references: [id])
 }
 
@@ -58,10 +71,36 @@ model Vote {
   user     User  @relation(fields: [user_id], references: [id])
 }
 
+model Submission {
+  id         Int      @id @default(autoincrement())
+  poll_id    Int
+  user_id    Int
+  score      Int
+  total      Int
+  submitted_at DateTime @default(now())
+  answers    Answer[]
+  poll       Poll     @relation(fields: [poll_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@unique([poll_id, user_id]) // One submission per user per poll
+}
+
+model Answer {
+  id            Int        @id @default(autoincrement())
+  submission_id Int
+  question_id   Int
+  option_id     Int?
+  answer_text   String?
+  is_correct    Boolean?
+  submission    Submission @relation(fields: [submission_id], references: [id])
+  question      Question   @relation(fields: [question_id], references: [id])
+  option        Option?    @relation(fields: [option_id], references: [id])
+}
+
 //model for analytics summarizing each poll, per run or per day.
 model Analytics {
   id             Int      @id @default(autoincrement())
-  poll_id          Int    
+  poll_id          Int
   total_responses Int
   created_at DateTime @default(now())
 

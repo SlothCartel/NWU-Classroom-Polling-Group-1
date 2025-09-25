@@ -2,7 +2,6 @@ import js from "@eslint/js";
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
-import eslintConfigPrettier from "eslint-config-prettier";
 
 export default [
   { ignores: ["dist/**", "node_modules/**"] },
@@ -13,14 +12,27 @@ export default [
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parser: tsParser,
-      parserOptions: { ecmaVersion: "latest", sourceType: "module" },
-      globals: { ...globals.browser, ...globals.es2021 },
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        jsx: true,
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+        React: "readonly",
+        JSX: "readonly",
+      },
     },
-    plugins: { "@typescript-eslint": tsPlugin },
+    plugins: {
+      "@typescript-eslint": tsPlugin,
+    },
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
-
-  eslintConfigPrettier,
 ];

@@ -1,117 +1,119 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createPoll, listPolls, startPoll, closePoll, updatePoll } from '@/lib/api'
-import type { Poll, QuizQuestion, ChoiceLabel } from '@/lib/types'
+import { useEffect, useMemo, useState } from "react";
+import { createPoll, listPolls, startPoll, closePoll, updatePoll } from "@/lib/api";
+import type { Poll, QuizQuestion, ChoiceLabel } from "@/lib/types";
 
-const LETTERS: ChoiceLabel[] = ['A', 'B', 'C', 'D']
+const LETTERS: ChoiceLabel[] = ["A", "B", "C", "D"];
 
 function blankQuestion(): QuizQuestion {
   return {
-    text: '',
-    options: LETTERS.map((l) => ({ label: l, text: '' })),
+    text: "",
+    options: LETTERS.map((l) => ({ label: l, text: "" })),
     correctIndex: 0,
-  }
+  };
 }
 
 export default function DashboardPage() {
-  const [polls, setPolls] = useState<Poll[]>([])
+  const [polls, setPolls] = useState<Poll[]>([]);
 
   // Left card (Create a new poll)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState("");
   const [questions, setQuestions] = useState<QuizQuestion[]>(
-    Array.from({ length: 5 }, blankQuestion)
-  )
-  const [minutes, setMinutes] = useState<number>(5)        // quiz timer (mins)
-  const [securityCode, setSecurityCode] = useState<string>('') // optional
+    Array.from({ length: 5 }, blankQuestion),
+  );
+  const [minutes, setMinutes] = useState<number>(5); // quiz timer (mins)
+  const [securityCode, setSecurityCode] = useState<string>(""); // optional
 
   // Right card (per-poll quick edits: timer + code)
-  const [edits, setEdits] = useState<Record<string, { minutes: number; securityCode: string }>>({})
+  const [edits, setEdits] = useState<Record<string, { minutes: number; securityCode: string }>>({});
 
   async function refresh() {
-    const data = await listPolls()
-    setPolls(data)
+    const data = await listPolls();
+    setPolls(data);
     // seed quick edit inputs from server values
-    const next: Record<string, { minutes: number; securityCode: string }> = {}
-    data.forEach(p => {
+    const next: Record<string, { minutes: number; securityCode: string }> = {};
+    data.forEach((p) => {
       next[p.id] = {
         minutes: Math.max(1, Math.round(p.timerSeconds / 60)),
-        securityCode: p.securityCode ?? '',
-      }
-    })
-    setEdits(next)
+        securityCode: p.securityCode ?? "",
+      };
+    });
+    setEdits(next);
   }
-  useEffect(() => { void refresh() }, [])
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   // ------ create form handlers ------
   function updateQuestionText(i: number, text: string) {
-    setQuestions(prev => {
-      const copy = [...prev]
-      copy[i] = { ...copy[i], text }
-      return copy
-    })
+    setQuestions((prev) => {
+      const copy = [...prev];
+      copy[i] = { ...copy[i], text };
+      return copy;
+    });
   }
 
   function updateOptionText(qIdx: number, oIdx: number, text: string) {
-    setQuestions(prev => {
-      const copy = [...prev]
-      const q = { ...copy[qIdx] }
-      const opts = [...q.options]
-      opts[oIdx] = { ...opts[oIdx], text }
-      q.options = opts
-      copy[qIdx] = q
-      return copy
-    })
+    setQuestions((prev) => {
+      const copy = [...prev];
+      const q = { ...copy[qIdx] };
+      const opts = [...q.options];
+      opts[oIdx] = { ...opts[oIdx], text };
+      q.options = opts;
+      copy[qIdx] = q;
+      return copy;
+    });
   }
 
   function setCorrect(qIdx: number, oIdx: number) {
-    setQuestions(prev => {
-      const copy = [...prev]
-      copy[qIdx] = { ...copy[qIdx], correctIndex: oIdx }
-      return copy
-    })
+    setQuestions((prev) => {
+      const copy = [...prev];
+      copy[qIdx] = { ...copy[qIdx], correctIndex: oIdx };
+      return copy;
+    });
   }
 
   const canSave = useMemo(() => {
-    if (!title.trim()) return false
-    if (minutes < 1) return false
+    if (!title.trim()) return false;
+    if (minutes < 1) return false;
     for (const q of questions) {
-      if (!q.text.trim()) return false
-      if (q.options.some(o => !o.text.trim())) return false
-      if (q.correctIndex < 0 || q.correctIndex > 3) return false
+      if (!q.text.trim()) return false;
+      if (q.options.some((o) => !o.text.trim())) return false;
+      if (q.correctIndex < 0 || q.correctIndex > 3) return false;
     }
-    return true
-  }, [title, minutes, questions])
+    return true;
+  }, [title, minutes, questions]);
 
   async function onCreatePoll(e: React.FormEvent) {
-    e.preventDefault()
-    if (!canSave) return
+    e.preventDefault();
+    if (!canSave) return;
 
     await createPoll({
       title: title.trim(),
-      questions: questions.map(q => ({
+      questions: questions.map((q) => ({
         text: q.text.trim(),
-        options: q.options.map(o => ({ ...o, text: o.text.trim() })),
+        options: q.options.map((o) => ({ ...o, text: o.text.trim() })),
         correctIndex: q.correctIndex,
       })),
       timerSeconds: Math.max(60, Math.round(minutes) * 60),
       securityCode: securityCode.trim() || undefined,
-    })
+    });
 
     // reset form
-    setTitle('')
-    setQuestions(Array.from({ length: 5 }, blankQuestion))
-    setMinutes(5)
-    setSecurityCode('')
-    await refresh()
+    setTitle("");
+    setQuestions(Array.from({ length: 5 }, blankQuestion));
+    setMinutes(5);
+    setSecurityCode("");
+    await refresh();
   }
 
   async function savePollSettings(p: Poll) {
-    const edit = edits[p.id]
-    if (!edit) return
+    const edit = edits[p.id];
+    if (!edit) return;
     await updatePoll(p.id, {
       timerSeconds: Math.max(60, Math.round(edit.minutes) * 60),
       securityCode: edit.securityCode.trim() || undefined,
-    })
-    await refresh()
+    });
+    await refresh();
   }
 
   return (
@@ -163,7 +165,7 @@ export default function DashboardPage() {
                   className="input mb-3"
                   placeholder="Enter question text"
                   value={q.text}
-                  onChange={(e)=>updateQuestionText(qi, e.target.value)}
+                  onChange={(e) => updateQuestionText(qi, e.target.value)}
                 />
 
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -173,7 +175,7 @@ export default function DashboardPage() {
                         type="radio"
                         name={`q${qi}-correct`}
                         checked={q.correctIndex === oi}
-                        onChange={()=>setCorrect(qi, oi)}
+                        onChange={() => setCorrect(qi, oi)}
                         aria-label={`Mark ${opt.label} as correct`}
                       />
                       <span className="w-6 text-center font-semibold">{opt.label}</span>
@@ -181,7 +183,7 @@ export default function DashboardPage() {
                         className="input flex-1"
                         placeholder={`Option ${opt.label}`}
                         value={opt.text}
-                        onChange={(e)=>updateOptionText(qi, oi, e.target.value)}
+                        onChange={(e) => updateOptionText(qi, oi, e.target.value)}
                       />
                     </div>
                   ))}
@@ -193,7 +195,9 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <button className="btn-primary" disabled={!canSave}>Create poll</button>
+          <button className="btn-primary" disabled={!canSave}>
+            Create poll
+          </button>
         </form>
       </section>
 
@@ -202,7 +206,7 @@ export default function DashboardPage() {
         <h2 className="text-xl font-semibold mb-3">Your polls</h2>
         <div className="space-y-3">
           {polls.length === 0 && <p className="text-gray-500">No polls yet.</p>}
-          {polls.map(p => (
+          {polls.map((p) => (
             <div key={p.id} className="border rounded-xl p-3 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -212,11 +216,15 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {p.status !== 'live' && (
-                    <button className="btn-primary" onClick={()=>startPoll(p.id).then(refresh)}>Start</button>
+                  {p.status !== "live" && (
+                    <button className="btn-primary" onClick={() => startPoll(p.id).then(refresh)}>
+                      Start
+                    </button>
                   )}
-                  {p.status === 'live' && (
-                    <button className="btn-secondary" onClick={()=>closePoll(p.id).then(refresh)}>Close</button>
+                  {p.status === "live" && (
+                    <button className="btn-secondary" onClick={() => closePoll(p.id).then(refresh)}>
+                      Close
+                    </button>
                   )}
                 </div>
               </div>
@@ -230,13 +238,15 @@ export default function DashboardPage() {
                     min={1}
                     className="input"
                     value={edits[p.id]?.minutes ?? 5}
-                    onChange={(e)=>setEdits(prev => ({
-                      ...prev,
-                      [p.id]: {
-                        ...(prev[p.id] ?? { minutes: 5, securityCode: '' }),
-                        minutes: Number(e.target.value)
-                      }
-                    }))}
+                    onChange={(e) =>
+                      setEdits((prev) => ({
+                        ...prev,
+                        [p.id]: {
+                          ...(prev[p.id] ?? { minutes: 5, securityCode: "" }),
+                          minutes: Number(e.target.value),
+                        },
+                      }))
+                    }
                   />
                 </div>
                 <div>
@@ -244,20 +254,22 @@ export default function DashboardPage() {
                   <input
                     className="input"
                     placeholder="Optional"
-                    value={edits[p.id]?.securityCode ?? ''}
-                    onChange={(e)=>setEdits(prev => ({
-                      ...prev,
-                      [p.id]: {
-                        ...(prev[p.id] ?? { minutes: 5, securityCode: '' }),
-                        securityCode: e.target.value
-                      }
-                    }))}
+                    value={edits[p.id]?.securityCode ?? ""}
+                    onChange={(e) =>
+                      setEdits((prev) => ({
+                        ...prev,
+                        [p.id]: {
+                          ...(prev[p.id] ?? { minutes: 5, securityCode: "" }),
+                          securityCode: e.target.value,
+                        },
+                      }))
+                    }
                   />
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <button className="btn-secondary" onClick={()=>savePollSettings(p)}>
+                <button className="btn-secondary" onClick={() => savePollSettings(p)}>
                   Save settings
                 </button>
               </div>
@@ -266,5 +278,5 @@ export default function DashboardPage() {
         </div>
       </section>
     </div>
-  )
+  );
 }

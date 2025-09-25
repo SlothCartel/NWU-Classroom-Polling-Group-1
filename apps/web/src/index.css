@@ -4,8 +4,14 @@
 
 /* Global background + full-height root */
 @layer base {
-  html, body, #root { height: 100%; }
-  body { @apply bg-purple-700; }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-purple-700;
+  }
 }
 
 @layer components {
