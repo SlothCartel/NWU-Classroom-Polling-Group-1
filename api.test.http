@@ -1,0 +1,148 @@
+### Variables
+@baseUrl = http://localhost:8080/api
+@lecturerToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsImVtYWlsIjoibGVjdHVyZXI3QG53dS5hYy56YSIsInJvbGUiOiJsZWN0dXJlciIsImlhdCI6MTc1ODc5NzcyNCwiZXhwIjoxNzU5NDAyNTI0fQ.zcs3Uq4tZT-wipVzj27rgkn5rTHyGWWc_TcIsYwTCAA
+@studentToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsImVtYWlsIjoic3R1ZGVudDlAbnd1LmFjLnphIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3NTg3OTc3OTIsImV4cCI6MTc1OTQwMjU5Mn0.clC9Ey80wxCuCGBvd90TXycBTzybK2hnUYB0N8SwacE
+
+### === WORKING ENDPOINTS ===
+
+### API Base
+GET {{baseUrl}}
+
+### Health Check
+GET {{baseUrl}}/health
+
+### === AUTH ENDPOINTS (ALL WORKING) ===
+
+### Auth Base Info
+GET {{baseUrl}}/auth
+
+### Lecturer Auth Info
+GET {{baseUrl}}/auth/lecturer
+
+### Student Auth Info
+GET {{baseUrl}}/auth/student
+
+### === LECTURER AUTH (WORKING) ===
+
+### Lecturer Signup
+POST {{baseUrl}}/auth/lecturer/signup
+Content-Type: application/json
+
+{
+  "name": "John Doe 2",
+  "email": "lecturer7@nwu.ac.za",
+  "password": "password123",
+  "employeeNumber": "EMP002"
+}
+
+### Lecturer Login
+POST {{baseUrl}}/auth/lecturer/login
+Content-Type: application/json
+
+{
+  "email": "lecturer7@nwu.ac.za",
+  "password": "password123"
+}
+
+### === STUDENT AUTH (WORKING) ===
+
+### Student Signup
+POST {{baseUrl}}/auth/student/signup
+Content-Type: application/json
+
+{
+  "name": "Jane Smith 2",
+  "email": "student9@nwu.ac.za",
+  "password": "password123",
+  "studentNumber": "STU008"
+}
+
+### Student Login
+POST {{baseUrl}}/auth/student/login
+Content-Type: application/json
+
+{
+  "email": "student9@nwu.ac.za",
+  "password": "password123"
+}
+
+### === POLLS ROUTE TESTING (ALL WORKING) ===
+
+### Polls Info
+GET {{baseUrl}}/polls/info
+
+### Polls Analytics Info
+GET {{baseUrl}}/polls/analytics
+
+### Polls Lifecycle Info
+GET {{baseUrl}}/polls/lifecycle
+
+### Polls Lobby Info
+GET {{baseUrl}}/polls/lobby
+
+### Polls Participation Info
+GET {{baseUrl}}/polls/participation
+
+### === STUDENTS ROUTE TESTING (ALL WORKING) ===
+
+### Students Base Info
+GET {{baseUrl}}/students
+
+### Students Submissions Info
+GET {{baseUrl}}/students/submissions
+
+### === PROTECTED ENDPOINT TESTS ===
+
+### Test Protected Route (Should work with lecturer token)
+GET {{baseUrl}}/polls
+Authorization: Bearer {{lecturerToken}}
+
+### Test Protected Route (Should work with student token)
+GET {{baseUrl}}/students
+Authorization: Bearer {{studentToken}}
+
+### === POTENTIAL CRUD OPERATIONS ===
+
+### Create Poll (if POST /polls exists)
+POST {{baseUrl}}/polls
+Content-Type: application/json
+Authorization: Bearer {{lecturerToken}}
+
+{
+  "title": "Test Poll",
+  "description": "This is a test poll",
+  "questions": [
+    {
+      "text": "What is 2 + 2?",
+      "type": "multiple_choice",
+      "options": ["3", "4", "5", "6"],
+      "correctAnswer": "4"
+    }
+  ],
+  "timeLimit": 300,
+  "isAnonymous": false
+}
+
+### Test Different HTTP Methods on Polls
+PUT {{baseUrl}}/polls/1
+Content-Type: application/json
+Authorization: Bearer {{lecturerToken}}
+
+{
+  "title": "Updated Poll"
+}
+
+###
+DELETE {{baseUrl}}/polls/1
+Authorization: Bearer {{lecturerToken}}
+
+### === ALTERNATIVE BASE URLS TO TEST ===
+
+### Try with /api prefix
+GET {{baseUrl}}/api/auth
+
+### Try different port
+GET http://localhost:3000/auth
+
+### Try without any prefix
+GET http://localhost:8080/auth/lecturer/signup
