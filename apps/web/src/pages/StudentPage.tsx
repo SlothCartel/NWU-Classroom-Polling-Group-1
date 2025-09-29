@@ -1,48 +1,52 @@
-import { useEffect, useMemo, useState } from 'react'
-import { listStudentSubmissions, deleteStudentSubmission } from '@/lib/api'
-import type { StoredSubmission } from '@/lib/types'
-import { useNavigate } from 'react-router-dom'
-import { studentSignOut, getStudentNumber } from '@/lib/studentAuth'
-import { getRole, setRole } from '@/lib/auth'
+import { useEffect, useMemo, useState } from "react";
+import { listStudentSubmissions, deleteStudentSubmission } from "@/lib/api";
+import type { StoredSubmission } from "@/lib/types";
+import { useNavigate } from "react-router-dom";
+import { studentSignOut, getStudentNumber } from "@/lib/studentAuth";
+import { getRole, setRole } from "@/lib/auth";
 
 function formatDate(ts: number) {
-  const d = new Date(ts)
-  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const d = new Date(ts);
+  return (
+    d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 export default function StudentPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   // Ensure role is student
   useEffect(() => {
-    if (getRole() !== 'student') setRole('student')
-  }, [])
+    if (getRole() !== "student") setRole("student");
+  }, []);
 
-  const [studentNumber, setStudentNumber] = useState<string>('')
-  const [subs, setSubs] = useState<StoredSubmission[]>([])
-  const [selected, setSelected] = useState<StoredSubmission | null>(null)
-  const hasStudent = useMemo(() => studentNumber.trim().length > 0, [studentNumber])
+  const [studentNumber, setStudentNumber] = useState<string>("");
+  const [subs, setSubs] = useState<StoredSubmission[]>([]);
+  const [selected, setSelected] = useState<StoredSubmission | null>(null);
+  const hasStudent = useMemo(() => studentNumber.trim().length > 0, [studentNumber]);
 
   // Auto-load results for the signed-in student
   useEffect(() => {
-    const n = (typeof getStudentNumber === 'function' ? getStudentNumber() : '') || ''
-    setStudentNumber(n)
+    const n = (typeof getStudentNumber === "function" ? getStudentNumber() : "") || "";
+    setStudentNumber(n);
     if (n) {
-      listStudentSubmissions(n).then(setSubs).catch(() => setSubs([]))
+      listStudentSubmissions(n)
+        .then(setSubs)
+        .catch(() => setSubs([]));
     }
-  }, [])
+  }, []);
 
   async function refresh() {
-    if (!hasStudent) return
-    const data = await listStudentSubmissions(studentNumber.trim())
-    setSubs(data)
+    if (!hasStudent) return;
+    const data = await listStudentSubmissions(studentNumber.trim());
+    setSubs(data);
   }
 
   async function handleDelete(pollId: string) {
-    if (!hasStudent) return
-    if (!confirm('Delete this result from your history?')) return
-    await deleteStudentSubmission(pollId, studentNumber.trim())
-    await refresh()
+    if (!hasStudent) return;
+    if (!confirm("Delete this result from your history?")) return;
+    await deleteStudentSubmission(pollId, studentNumber.trim());
+    await refresh();
   }
 
   return (
@@ -70,8 +74,8 @@ export default function StudentPage() {
               <button
                 className="btn-primary"
                 onClick={() => {
-                  setRole('student')
-                  navigate('/join')
+                  setRole("student");
+                  navigate("/join");
                 }}
               >
                 Join a poll
@@ -79,8 +83,8 @@ export default function StudentPage() {
               <button
                 className="btn-secondary"
                 onClick={() => {
-                  studentSignOut()
-                  navigate('/student-login')
+                  studentSignOut();
+                  navigate("/student-login");
                 }}
               >
                 Sign out
@@ -104,10 +108,10 @@ export default function StudentPage() {
 
           {!hasStudent ? (
             <div className="text-gray-600 text-sm">
-              We don’t have your student number yet. If you just logged in, go ahead and{' '}
+              We don’t have your student number yet. If you just logged in, go ahead and{" "}
               <button
                 className="text-purple-700 underline font-medium"
-                onClick={() => navigate('/join')}
+                onClick={() => navigate("/join")}
               >
                 join a poll
               </button>
@@ -126,7 +130,7 @@ export default function StudentPage() {
                       className="w-full text-left rounded-2xl border border-purple-100 hover:border-purple-200 bg-white p-4 shadow-sm hover:shadow transition outline-none focus:ring-2 focus:ring-purple-400"
                       onClick={() => setSelected(s)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') setSelected(s)
+                        if (e.key === "Enter" || e.key === " ") setSelected(s);
                       }}
                     >
                       <div className="flex items-center justify-between">
@@ -146,8 +150,8 @@ export default function StudentPage() {
                           <button
                             className="btn-secondary"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleDelete(s.pollId)
+                              e.stopPropagation();
+                              handleDelete(s.pollId);
                             }}
                             aria-label="Delete this result"
                           >
@@ -183,10 +187,10 @@ export default function StudentPage() {
 
             <div className="space-y-4">
               {selected.feedback.map((f) => {
-                const correctLabel = f.options[f.correctIndex]?.label ?? '?'
+                const correctLabel = f.options[f.correctIndex]?.label ?? "?";
                 const chosenLabel =
-                  f.chosenIndex >= 0 ? (f.options[f.chosenIndex]?.label ?? '?') : '—'
-                const badge = f.correct ? 'text-green-700' : 'text-red-700'
+                  f.chosenIndex >= 0 ? (f.options[f.chosenIndex]?.label ?? "?") : "—";
+                const badge = f.correct ? "text-green-700" : "text-red-700";
                 return (
                   <div key={f.qIndex} className="rounded-xl border border-gray-200 p-4">
                     <div className="flex items-center justify-between">
@@ -194,42 +198,45 @@ export default function StudentPage() {
                         Question {f.qIndex + 1}: {f.question}
                       </div>
                       <span className={`text-sm ${badge}`}>
-                        {f.correct ? 'correct' : 'incorrect'} • {f.correct ? '1' : '0'} out 1
+                        {f.correct ? "correct" : "incorrect"} • {f.correct ? "1" : "0"} out 1
                       </span>
                     </div>
                     <div className="mt-3 grid sm:grid-cols-2 gap-2">
                       {f.options.map((opt, oi) => {
-                        const isChosen = oi === f.chosenIndex
-                        const isCorrect = oi === f.correctIndex
+                        const isChosen = oi === f.chosenIndex;
+                        const isCorrect = oi === f.correctIndex;
                         const bg = isCorrect
-                          ? 'bg-green-100'
+                          ? "bg-green-100"
                           : isChosen && !isCorrect
-                          ? 'bg-red-100'
-                          : 'bg-gray-100'
-                        const ring = isChosen ? 'ring-2 ring-offset-2' : ''
+                            ? "bg-red-100"
+                            : "bg-gray-100";
+                        const ring = isChosen ? "ring-2 ring-offset-2" : "";
                         return (
                           <div key={oi} className={`rounded-lg px-3 py-2 ${bg} ${ring}`}>
                             <span className="font-semibold mr-2">{opt.label}.</span>
                             {opt.text}
-                            {isCorrect && <span className="ml-2 text-green-700 text-xs">(correct)</span>}
+                            {isCorrect && (
+                              <span className="ml-2 text-green-700 text-xs">(correct)</span>
+                            )}
                             {isChosen && !isCorrect && (
                               <span className="ml-2 text-red-700 text-xs">(your choice)</span>
                             )}
                           </div>
-                        )
+                        );
                       })}
                     </div>
                     <p className="text-sm mt-3">
-                      You selected <strong>{chosenLabel}</strong> — {f.correct ? 'correct' : 'incorrect'}.{' '}
-                      Correct Answer <strong>{correctLabel}</strong>.
+                      You selected <strong>{chosenLabel}</strong> —{" "}
+                      {f.correct ? "correct" : "incorrect"}. Correct Answer{" "}
+                      <strong>{correctLabel}</strong>.
                     </p>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
