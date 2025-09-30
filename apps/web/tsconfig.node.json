@@ -1,9 +1,9 @@
 ﻿{
-  "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": true,
     "module": "ESNext",
-    "moduleResolution": "Node"
+    "moduleResolution": "Bundler",
+    "types": ["node"]
   },
-  "include": ["vite.config.ts", "tailwind.config.ts", "postcss.config.js", "index.html"]
+  "include": ["vite.config.ts"]
 }

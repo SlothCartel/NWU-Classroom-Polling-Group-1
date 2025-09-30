@@ -10,16 +10,16 @@ import JoinPage from "@/pages/JoinPage";
 import StatsPage from "@/pages/StatsPage";
 import { getRole } from "@/lib/auth";
 
-function RequireLecturer({ children }: { children: JSX.Element }) {
+function RequireLecturer({ children }: { children: React.ReactNode }) {
   return getRole() === "lecturer" ? children : <Navigate to="/lecturer-login" replace />;
 }
 
-function RequireStudent({ children }: { children: JSX.Element }) {
+function RequireStudent({ children }: { children: React.ReactNode }) {
   return getRole() === "student" ? children : <Navigate to="/student-login" replace />;
 }
 
 /** If already signed in, skip the login screen */
-function RedirectIfAuthed({ children }: { children: JSX.Element }) {
+function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
   const role = getRole();
   if (role === "lecturer") return <Navigate to="/dashboard" replace />;
   if (role === "student") return <Navigate to="/student" replace />;

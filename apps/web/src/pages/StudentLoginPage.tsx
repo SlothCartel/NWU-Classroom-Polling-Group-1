@@ -1,7 +1,7 @@
 // src/pages/StudentLoginPage.tsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { studentSignIn } from "@/lib/studentAuth";
+import { studentSignIn } from "@/lib/api"
 
 export default function StudentLoginPage() {
   const nav = useNavigate();
@@ -15,7 +15,7 @@ export default function StudentLoginPage() {
     setErr(null);
     setLoading(true);
     try {
-      await studentSignIn(number, password);
+     await studentSignIn(number /* treated as email for now */, password);
       nav("/student", { replace: true });
     } catch (e: any) {
       setErr(e?.message ?? "Sign-in failed");

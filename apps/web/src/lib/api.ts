@@ -1,388 +1,250 @@
-// src/lib/api.ts
-// MOCK API using localStorage, with lobby + grading/feedback + stats + student history
-
+import { http } from "./http";
+import { setToken, setRole } from "./auth";
 import type {
+  ApiOk,
+  ServerPoll,
+  ServerStats,
   Poll,
   QuizQuestion,
+  ChoiceLabel,
   StudentPoll,
-  SubmissionFeedback,
-  SubmitResult,
   StoredSubmission,
+  SubmitResultUI,
 } from "./types";
 
-const LS_POLLS = "mock_polls_v1";
-const LS_LOBBY = "mock_lobbies_v1";
-const LS_SUBMISSIONS = "mock_submissions_v1"; // studentNumber -> StoredSubmission[]
-const LS_LIVE = "mock_live_responses_v1"; // pollId -> { [studentNumber]: number[] }
+const LABELS = ["A", "B", "C", "D"] as const;
 
-type Lobby = Record<string, string[]>; // pollId -> [studentNumber]
-type StoredByStudent = Record<string, StoredSubmission[]>; // studentNumber -> submissions[]
-type LiveMap = Record<string, Record<string, number[]>>; // pollId -> student -> answers[]
-
-/* ---------------- helpers ---------------- */
-function loadPolls(): Poll[] {
-  try {
-    const raw = localStorage.getItem(LS_POLLS);
-    return raw ? (JSON.parse(raw) as Poll[]) : [];
-  } catch {
-    return [];
-  }
-}
-function savePolls(p: Poll[]) {
-  localStorage.setItem(LS_POLLS, JSON.stringify(p));
-}
-function loadLobby(): Lobby {
-  try {
-    const raw = localStorage.getItem(LS_LOBBY);
-    return raw ? (JSON.parse(raw) as Lobby) : {};
-  } catch {
-    return {};
-  }
-}
-function saveLobby(l: Lobby) {
-  localStorage.setItem(LS_LOBBY, JSON.stringify(l));
-}
-function genId() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-function genJoinCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+// ---------- map server → UI ----------
+function toUIPoll(p: ServerPoll): Poll {
+  return {
+    id: String(p.id),
+    title: p.title,
+    description: p.description ?? null,
+    joinCode: p.joinCode,
+    status: p.status as Poll["status"],
+    timerSeconds: p.timerSeconds,
+    securityCode: p.securityCode ?? null,
+    createdAt: p.createdAt ?? undefined,
+    questions: p.questions.map((q) => ({
+      text: q.question_text,
+      correctIndex: q.correctIndex ?? 0,
+      options: q.options
+        .sort((a, b) => a.optionIndex - b.optionIndex)
+        .map((o) => ({
+          label: (LABELS[o.optionIndex] ?? "A") as ChoiceLabel,
+          text: o.option_text,
+        })),
+    })),
+  };
 }
 
-function loadAllSubmissions(): StoredByStudent {
-  try {
-    const raw = localStorage.getItem(LS_SUBMISSIONS);
-    return raw ? (JSON.parse(raw) as StoredByStudent) : {};
-  } catch {
-    return {};
-  }
-}
-function saveAllSubmissions(obj: StoredByStudent) {
-  localStorage.setItem(LS_SUBMISSIONS, JSON.stringify(obj));
-}
-
-function loadLive(): LiveMap {
-  try {
-    const raw = localStorage.getItem(LS_LIVE);
-    return raw ? (JSON.parse(raw) as LiveMap) : {};
-  } catch {
-    return {};
-  }
-}
-function saveLive(obj: LiveMap) {
-  localStorage.setItem(LS_LIVE, JSON.stringify(obj));
+function toStudentPoll(p: ServerPoll): StudentPoll {
+  return {
+    id: String(p.id),
+    title: p.title,
+    status: p.status as StudentPoll["status"],
+    timerSeconds: p.timerSeconds,
+    questions: p.questions.map((q, qi) => ({
+      id: q.id ?? qi + 1,
+      text: q.question_text,
+      correctIndex: q.correctIndex ?? -1,
+      options: q.options
+        .sort((a, b) => a.optionIndex - b.optionIndex)
+        .map((o) => ({
+          label: (LABELS[o.optionIndex] ?? "A") as ChoiceLabel,
+          text: o.option_text,
+        })),
+    })),
+  };
 }
 
-/* ---------------- lecturer/admin ---------------- */
-export async function listPolls(): Promise<Poll[]> {
-  return loadPolls();
+function toServerQuestions(qs: QuizQuestion[]) {
+  return qs.map((q) => ({
+    text: q.text,
+    correctIndex: q.correctIndex,
+    options: q.options.map((o, idx) => ({ text: o.text, index: idx })),
+  }));
 }
 
-export async function createPoll(payload: {
+let lastQuestionIds: number[] = [];
+let lastStudentPoll: StudentPoll | null = null;
+function remember(p: StudentPoll) {
+  lastStudentPoll = p;
+  lastQuestionIds = p.questions.map((q, i) => q.id ?? i + 1);
+}
+
+// ---------- AUTH ----------
+export async function studentSignIn(identifier: string, password: string) {
+  // Treat identifier as email for backend login (keeps your UI unchanged).
+  const r = await http.post<ApiOk<{ user: any; token: string }>>(
+    "/auth/student/login",
+    { email: identifier.trim(), password },
+    false,
+  );
+  setToken(r.data.token);
+  setRole("student");
+  return r.data;
+}
+
+export async function lecturerSignIn(email: string, password: string) {
+  const r = await http.post<ApiOk<{ user: any; token: string }>>(
+    "/auth/lecturer/login",
+    { email, password },
+    false,
+  );
+  setToken(r.data.token);
+  setRole("lecturer");
+  return r.data;
+}
+
+// ---------- POLLS (lecturer) ----------
+export const listPolls = async (): Promise<Poll[]> => {
+  const r = await http.get<ApiOk<ServerPoll[]>>("/polls");
+  return r.data.map(toUIPoll);
+};
+
+export const createPoll = async (p: {
   title: string;
   questions: QuizQuestion[];
   timerSeconds: number;
   securityCode?: string;
-}): Promise<Poll> {
-  const polls = loadPolls();
-  const poll: Poll = {
-    id: genId(),
-    joinCode: genJoinCode(),
-    title: payload.title,
-    status: "draft",
-    questions: payload.questions,
-    timerSeconds: payload.timerSeconds,
-    securityCode: payload.securityCode,
-  };
-  polls.unshift(poll);
-  savePolls(polls);
-  return poll;
-}
-
-export async function updatePoll(
-  id: string,
-  patch: Partial<Pick<Poll, "title" | "questions" | "timerSeconds" | "securityCode" | "status">>,
-): Promise<void> {
-  const polls = loadPolls();
-  const i = polls.findIndex((p) => p.id === id);
-  if (i >= 0) {
-    polls[i] = { ...polls[i], ...patch };
-    savePolls(polls);
-  }
-}
-
-export async function deletePoll(id: string): Promise<void> {
-  const polls = loadPolls().filter((p) => p.id !== id);
-  savePolls(polls);
-  const lobby = loadLobby();
-  delete lobby[id];
-  saveLobby(lobby);
-
-  // Also delete any stored submissions for this poll
-  const all = loadAllSubmissions();
-  Object.keys(all).forEach((stu) => {
-    all[stu] = all[stu].filter((s) => s.pollId !== id);
-  });
-  saveAllSubmissions(all);
-
-  // Remove live responses too
-  const live = loadLive();
-  delete live[id];
-  saveLive(live);
-}
-
-export async function openPoll(id: string): Promise<void> {
-  await updatePoll(id, { status: "open" });
-  const lobby = loadLobby();
-  if (!lobby[id]) lobby[id] = [];
-  saveLobby(lobby);
-}
-
-export async function startPoll(id: string): Promise<void> {
-  await updatePoll(id, { status: "live" });
-}
-
-export async function closePoll(id: string): Promise<void> {
-  // When lecturer ends the poll, move to closed.
-  await updatePoll(id, { status: "closed" });
-}
-
-/* ------- lobby (waiting room) controls for lecturer ------- */
-export async function listLobby(pollId: string): Promise<string[]> {
-  const lobby = loadLobby();
-  return lobby[pollId] ?? [];
-}
-export async function kickFromLobby(pollId: string, studentNumber: string): Promise<void> {
-  const lobby = loadLobby();
-  lobby[pollId] = (lobby[pollId] ?? []).filter((s) => s !== studentNumber);
-  saveLobby(lobby);
-
-  // Also clear any live picks for that student (keeps stats clean)
-  const live = loadLive();
-  if (live[pollId]) {
-    delete live[pollId][studentNumber];
-    saveLive(live);
-  }
-}
-
-/* ---------------- student-facing ---------------- */
-export async function getPollByCode(joinCode: string): Promise<StudentPoll> {
-  const polls = loadPolls();
-  const p = polls.find((x) => x.joinCode.toUpperCase() === joinCode.toUpperCase());
-  if (!p) throw new Error("Poll not found");
-  if (!(p.status === "open" || p.status === "live")) {
-    throw new Error("Poll is not accepting joins");
-  }
-  return {
-    id: p.id,
-    joinCode: p.joinCode,
+}): Promise<Poll> => {
+  const r = await http.post<ApiOk<ServerPoll>>("/polls", {
     title: p.title,
-    status: p.status as "open" | "live",
+    questions: toServerQuestions(p.questions),
     timerSeconds: p.timerSeconds,
-    questions: p.questions.map((q) => ({ text: q.text, options: q.options })),
-  };
+    securityCode: p.securityCode,
+  });
+  return toUIPoll(r.data);
+};
+
+export const deletePoll = async (id: string | number) => {
+  await http.del<ApiOk<{ message: string }>>(`/polls/${id}`);
+};
+
+export const openPoll  = async (id: string | number) => toUIPoll((await http.post<ApiOk<ServerPoll>>(`/polls/${id}/open`)).data);
+export const startPoll = async (id: string | number) => toUIPoll((await http.post<ApiOk<ServerPoll>>(`/polls/${id}/start`)).data);
+export const closePoll = async (id: string | number) => toUIPoll((await http.post<ApiOk<ServerPoll>>(`/polls/${id}/close`)).data);
+
+// Backend PUT not implemented (501), but we expose it to keep page code intact.
+export async function updatePoll(
+  id: string | number,
+  payload:
+    | { title: string; questions: QuizQuestion[] }
+    | { timerSeconds: number; securityCode?: string },
+) {
+  const body =
+    "questions" in payload
+      ? { title: payload.title, questions: toServerQuestions(payload.questions) }
+      : payload;
+  await http.put<ApiOk<ServerPoll>>(`/polls/${id}`, body); // expect 501 per backend
 }
 
-/** Register a student (attendance) */
-export async function studentJoin(params: {
+export const getPollById = async (id: string | number) =>
+  toUIPoll((await http.get<ApiOk<ServerPoll>>(`/polls/${id}`)).data);
+
+// ---------- LOBBY ----------
+export const listLobby = async (id: string | number): Promise<string[]> => {
+  const r = await http.get<
+    ApiOk<{ id: number; name: string; studentNumber: string; joinedAt: string }[]>
+  >(`/polls/${id}/lobby`);
+  return r.data.map((s) => s.studentNumber);
+};
+
+export const kickFromLobby = async (id: string | number, studentNumber: string) =>
+  http.del<ApiOk<{ success: true; message: string }>>(`/polls/${id}/lobby/${studentNumber}`);
+
+// ---------- STUDENT participation ----------
+export const getPollByCode = async (joinCode: string): Promise<StudentPoll> => {
+  const r = await http.get<ApiOk<ServerPoll>>(`/polls/code/${joinCode}`, false);
+  const sp = toStudentPoll(r.data);
+  remember(sp);
+  return sp;
+};
+
+export const studentJoin = async (p: {
   joinCode: string;
   studentNumber: string;
   securityCode?: string;
-}): Promise<{ pollId: string; status: "open" | "live" }> {
-  const polls = loadPolls();
-  const p = polls.find((x) => x.joinCode.toUpperCase() === params.joinCode.toUpperCase());
-  if (!p) throw new Error("Poll not found");
-  if (p.securityCode && p.securityCode !== params.securityCode)
-    throw new Error("Invalid security code");
-  if (!(p.status === "open" || p.status === "live")) throw new Error("Poll is not accepting joins");
+}): Promise<StudentPoll> => {
+  const r = await http.post<ApiOk<ServerPoll>>("/polls/join", p, false);
+  const sp = toStudentPoll(r.data);
+  remember(sp);
+  return sp;
+};
 
-  // ✅ Always track attendance (even when poll is already live)
-  const lobby = loadLobby();
-  const list = lobby[p.id] ?? [];
-  if (!list.includes(params.studentNumber)) list.push(params.studentNumber);
-  lobby[p.id] = list;
-  saveLobby(lobby);
-
-  return { pollId: p.id, status: p.status as "open" | "live" };
-}
-
-/** Record a live (in-progress) choice so stats can reflect picks before submission. */
-export async function recordLiveChoice(
-  pollId: string,
-  studentNumber: string,
+export const recordLiveChoice = async (
+  pollId: string | number,
+  _studentNumber: string,
   qIndex: number,
-  chosenIndex: number,
-): Promise<void> {
-  const live = loadLive();
-  if (!live[pollId]) live[pollId] = {};
-  const arr = Array.isArray(live[pollId][studentNumber]) ? live[pollId][studentNumber] : [];
-  const next = [...arr];
-  next[qIndex] = chosenIndex;
-  live[pollId][studentNumber] = next;
-  saveLive(live);
-}
+  optionIndex: number,
+) => {
+  const questionId = lastQuestionIds[qIndex] ?? qIndex + 1;
+  await http.post<ApiOk<{ success: true; message?: string }>>(
+    `/polls/${pollId}/choices`,
+    { questionId, optionIndex },
+  );
+};
 
-/** Grade & return feedback + persist to student history
- *  - Accept when poll is 'live' **or** 'closed'
- *  - Treat unanswered as -1 (incorrect)
- *  - Clear live picks for the student once submitted (to avoid double counting)
- */
-export async function submitAnswers(params: {
-  pollId: string;
+export const submitAnswers = async (p: {
+  pollId: string | number;
   answers: number[];
   studentNumber: string;
   securityCode?: string;
-}): Promise<SubmitResult> {
-  const polls = loadPolls();
-  const p = polls.find((x) => x.id === params.pollId);
-  if (!p) throw new Error("Poll not found");
-  if (p.securityCode && p.securityCode !== params.securityCode)
-    throw new Error("Invalid security code");
-  if (!(p.status === "live" || p.status === "closed")) throw new Error("Poll is not live");
+}): Promise<SubmitResultUI> => {
+  const body = {
+    answers: p.answers.map((optIndex, i) => ({
+      questionId: lastQuestionIds[i] ?? i + 1,
+      optionIndex: optIndex,
+    })),
+  };
+  await http.post<ApiOk<any>>(`/polls/${p.pollId}/submit`, body);
 
-  const feedback: SubmissionFeedback[] = p.questions.map((q, i) => {
-    const chosenIndex = Number.isInteger(params.answers[i]) ? params.answers[i] : -1;
-    const correct = chosenIndex === q.correctIndex;
-    return {
+  const poll = lastStudentPoll;
+  const total = poll?.questions.length ?? p.answers.length;
+  const feedback =
+    poll?.questions.map((q, i) => ({
       qIndex: i,
       question: q.text,
-      chosenIndex,
-      correctIndex: q.correctIndex,
-      correct,
       options: q.options,
-    };
-  });
-
+      chosenIndex: p.answers[i],
+      correctIndex: q.correctIndex ?? -1,
+      correct: (q.correctIndex ?? -1) === p.answers[i],
+    })) ?? [];
   const score = feedback.filter((f) => f.correct).length;
-  const result: SubmitResult = { score, total: p.questions.length, feedback };
+  return { score, total, feedback };
+};
 
-  // Persist to local "history" per student so StudentPage can load it
-  const all = loadAllSubmissions();
-  const list = all[params.studentNumber] ?? [];
-  const entry: StoredSubmission = {
-    pollId: p.id,
-    joinCode: p.joinCode,
-    title: p.title,
-    submittedAt: Date.now(),
-    score,
-    total: p.questions.length,
-    feedback,
-    studentNumber: params.studentNumber,
-  };
-  const next = list.filter((s) => s.pollId !== entry.pollId);
-  next.push(entry);
-  next.sort((a, b) => b.submittedAt - a.submittedAt);
-  all[params.studentNumber] = next;
-  saveAllSubmissions(all);
+// ---------- ANALYTICS ----------
+export const getPollStats = async (id: string | number) => {
+  const [stats, lobby] = await Promise.all([
+    http.get<ApiOk<ServerStats>>(`/polls/${id}/stats`),
+    http.get<
+      ApiOk<{ id: number; name: string; studentNumber: string; joinedAt: string }[]>
+    >(`/polls/${id}/lobby`),
+  ]);
 
-  // ✅ Clear live picks for this student (prevents double counting in stats)
-  const live = loadLive();
-  if (live[p.id]) {
-    delete live[p.id][params.studentNumber];
-    saveLive(live);
-  }
-
-  return result;
-}
-
-/* ---------------- student results history (used by StudentPage) ---------------- */
-export async function listStudentSubmissions(studentNumber: string): Promise<StoredSubmission[]> {
-  const all = loadAllSubmissions();
-  const arr = all[studentNumber] ?? [];
-  return [...arr].sort((a, b) => b.submittedAt - a.submittedAt);
-}
-
-export async function deleteStudentSubmission(
-  pollId: string,
-  studentNumber: string,
-): Promise<void> {
-  const all = loadAllSubmissions();
-  const arr = all[studentNumber] ?? [];
-  all[studentNumber] = arr.filter((s) => s.pollId !== pollId);
-  saveAllSubmissions(all);
-}
-
-/* ---------------- helpers for Stats page ---------------- */
-export async function getPollById(pollId: string): Promise<Poll> {
-  const polls = loadPolls();
-  const p = polls.find((x) => x.id === pollId);
-  if (!p) throw new Error("Poll not found");
-  return p;
-}
-
-/** Aggregate per-question correct/incorrect/notAnswered + attendees for a poll
- *  - Uses submitted results
- *  - Plus live in-progress choices for students who haven't submitted yet
- *  - Attendance = union(lobby attendees, live responders, submitted students)
- */
-export async function getPollStats(pollId: string): Promise<{
-  pollId: string;
-  title: string;
-  attendees: string[];
-  perQuestion: {
-    qIndex: number;
-    text: string;
-    correct: number;
-    incorrect: number;
-    notAnswered: number;
-  }[];
-}> {
-  const poll = await getPollById(pollId);
-
-  const byStudent = loadAllSubmissions();
-  const live = loadLive();
-  const lobby = loadLobby();
-
-  const submittedBy = new Set<string>();
-  const attendees = new Set<string>(lobby[pollId] ?? []);
-
-  const perQuestion = poll.questions.map((q, idx) => ({
-    qIndex: idx,
-    text: q.text,
-    correct: 0,
-    incorrect: 0,
-    notAnswered: 0,
-  }));
-
-  // 1) Tally submitted results
-  Object.entries(byStudent).forEach(([stu, subs]) => {
-    (subs as StoredSubmission[]).forEach((s) => {
-      if (s.pollId !== pollId) return;
-      submittedBy.add(stu);
-      attendees.add(stu);
-      s.feedback.forEach((f) => {
-        const tgt = perQuestion[f.qIndex];
-        if (!tgt) return;
-        if (f.chosenIndex == null || f.chosenIndex < 0) tgt.notAnswered += 1;
-        else if (f.correct) tgt.correct += 1;
-        else tgt.incorrect += 1;
-      });
-    });
+  const attendees = lobby.data.map((s) => s.studentNumber);
+  const perQuestion = stats.data.questions.map((q, idx) => {
+    const correct = q.correctAnswers;
+    const incorrect = Math.max(0, q.totalAnswers - q.correctAnswers);
+    const notAnswered = Math.max(0, attendees.length - q.totalAnswers);
+    return { qIndex: idx, text: q.questionText, correct, incorrect, notAnswered };
+    // shape matches your StatsPage needs
   });
 
-  // 2) Tally live in-progress picks for students who haven't submitted
-  const liveForPoll = live[pollId] ?? {};
-  Object.entries(liveForPoll).forEach(([stu, answers]) => {
-    attendees.add(stu);
-    if (submittedBy.has(stu)) return; // already counted via submission
-    poll.questions.forEach((q, idx) => {
-      const choice = answers[idx];
-      const tgt = perQuestion[idx];
-      if (!tgt) return;
-      if (Number.isInteger(choice)) {
-        if (choice === q.correctIndex) tgt.correct += 1;
-        else tgt.incorrect += 1;
-      } else {
-        tgt.notAnswered += 1;
-      }
-    });
-  });
+  return { attendees, perQuestion };
+};
 
-  return {
-    pollId,
-    title: poll.title,
-    attendees: Array.from(attendees),
-    perQuestion,
-  };
-}
+// ---------- STUDENT history ----------
+export const listStudentSubmissions = async (studentNumber: string) => {
+  const r = await http.get<ApiOk<StoredSubmission[]>>(
+    `/students/${encodeURIComponent(studentNumber)}/submissions`,
+  );
+  return r.data;
+};
+
+export const deleteStudentSubmission = async (pollId: string, studentNumber: string) =>
+  http.del<ApiOk<{ success: true; message: string }>>(
+    `/students/${encodeURIComponent(studentNumber)}/submissions/${encodeURIComponent(pollId)}`,
+  );
