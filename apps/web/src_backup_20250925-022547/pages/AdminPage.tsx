@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { clearAuth, setRole } from '@/lib/auth'
 import { useNavigate } from 'react-router-dom'
 import {
   createPoll, listPolls, startPoll, closePoll, updatePoll, openPoll, deletePoll,
-  listLobby, kickFromLobby,
 } from '@/lib/api'
 import type { Poll, QuizQuestion, ChoiceLabel } from '@/lib/types'
 
 const LETTERS: ChoiceLabel[] = ['A', 'B', 'C', 'D']
-const MIN_Q = 3
-const MAX_Q = 5
-
 const blankQuestion = (): QuizQuestion => ({
   text: '',
   options: LETTERS.map(l => ({ label: l, text: '' })),
@@ -21,14 +16,15 @@ export default function AdminPage() {
   const [polls, setPolls] = useState<Poll[]>([])
   const navigate = useNavigate()
 
+  // Back to login
   function goBackToLogin() {
-    try { clearAuth() } catch {}
-    navigate('/login', { replace: true })
+    localStorage.removeItem('role') // optional
+    navigate('/login')
   }
 
   // LEFT: create
   const [title, setTitle] = useState('')
-  const [questions, setQuestions] = useState<QuizQuestion[]>(Array.from({ length: MIN_Q }, blankQuestion))
+  const [questions, setQuestions] = useState<QuizQuestion[]>(Array.from({ length: 5 }, blankQuestion))
   const [minutes, setMinutes] = useState<number>(5)
   const [securityCode, setSecurityCode] = useState<string>('')
 
@@ -41,24 +37,6 @@ export default function AdminPage() {
     title: string
     questions: QuizQuestion[]
   } | null>(null)
-
-  // LOBBY MODAL
-  const [lobbyFor, setLobbyFor] = useState<Poll | null>(null)
-  const [lobbyList, setLobbyList] = useState<string[]>([])
-  useEffect(() => {
-    if (!lobbyFor) return
-    let stop = false
-    async function tick() {
-      try {
-        const list = await listLobby(lobbyFor.id)
-        if (!stop) setLobbyList(list)
-      } finally {
-        if (!stop) setTimeout(tick, 1500)
-      }
-    }
-    tick()
-    return () => { stop = true }
-  }, [lobbyFor])
 
   async function refresh() {
     const data = await listPolls()
@@ -78,7 +56,6 @@ export default function AdminPage() {
   const canSave = useMemo(() => {
     if (!title.trim()) return false
     if (minutes < 1) return false
-    if (questions.length < MIN_Q || questions.length > MAX_Q) return false
     for (const q of questions) {
       if (!q.text.trim()) return false
       if (q.options.some(o => !o.text.trim())) return false
@@ -87,17 +64,6 @@ export default function AdminPage() {
     return true
   }, [title, minutes, questions])
 
-  function addQuestion() {
-    setQuestions(prev => prev.length >= MAX_Q ? prev : [...prev, blankQuestion()])
-  }
-  function removeQuestion(i: number) {
-    setQuestions(prev => {
-      if (prev.length <= MIN_Q) return prev
-      const copy = [...prev]
-      copy.splice(i, 1)
-      return copy
-    })
-  }
   function updateQuestionText(i: number, text: string) {
     setQuestions(prev => {
       const copy = [...prev]
@@ -138,7 +104,7 @@ export default function AdminPage() {
       securityCode: securityCode.trim() || undefined,
     })
     setTitle('')
-    setQuestions(Array.from({ length: MIN_Q }, blankQuestion))
+    setQuestions(Array.from({ length: 5 }, blankQuestion))
     setMinutes(5)
     setSecurityCode('')
     await refresh()
@@ -163,8 +129,12 @@ export default function AdminPage() {
     }))
     setEditing({ id: p.id, title: p.title, questions: qs })
   }
+
   function editUpdateQText(i: number, text: string) {
-    setEditing(prev => prev ? { ...prev, questions: prev.questions.map((q, idx) => idx === i ? { ...q, text } : q) } : prev)
+    setEditing(prev => prev ? {
+      ...prev,
+      questions: prev.questions.map((q, idx) => idx === i ? { ...q, text } : q)
+    } : prev)
   }
   function editUpdateOpt(qIdx: number, oIdx: number, text: string) {
     setEditing(prev => {
@@ -179,12 +149,15 @@ export default function AdminPage() {
     })
   }
   function editSetCorrect(qIdx: number, oIdx: number) {
-    setEditing(prev => prev ? { ...prev, questions: prev.questions.map((q, idx) => idx === qIdx ? { ...q, correctIndex: oIdx } : q) } : prev)
+    setEditing(prev => prev ? {
+      ...prev,
+      questions: prev.questions.map((q, idx) => idx === qIdx ? { ...q, correctIndex: oIdx } : q)
+    } : prev)
   }
+
   const canSaveEdit = useMemo(() => {
     if (!editing) return false
     if (!editing.title.trim()) return false
-    if (editing.questions.length < MIN_Q || editing.questions.length > MAX_Q) return false
     for (const q of editing.questions) {
       if (!q.text.trim()) return false
       if (q.options.some(o => !o.text.trim())) return false
@@ -192,6 +165,7 @@ export default function AdminPage() {
     }
     return true
   }, [editing])
+
   async function confirmSaveEdit() {
     if (!editing || !canSaveEdit) return
     await updatePoll(editing.id, {
@@ -205,28 +179,10 @@ export default function AdminPage() {
     setEditing(null)
     await refresh()
   }
+
   async function confirmDelete(id: string) {
     if (!confirm('Delete this poll? This cannot be undone.')) return
     await deletePoll(id)
-    await refresh()
-  }
-
-  // ----- Lobby actions -----
-  async function openLobby(p: Poll) {
-    await openPoll(p.id)
-    await refresh()
-    setLobbyFor(p)
-  }
-  async function lobbyStart() {
-    if (!lobbyFor) return
-    await startPoll(lobbyFor.id)
-    setLobbyFor(null)
-    await refresh()
-  }
-  async function lobbyClose() {
-    if (!lobbyFor) return
-    await closePoll(lobbyFor.id)
-    setLobbyFor(null)
     await refresh()
   }
 
@@ -234,7 +190,9 @@ export default function AdminPage() {
     <>
       {/* Top bar */}
       <div className="flex items-center justify-end p-3">
-        <button className="btn-secondary" onClick={goBackToLogin}>Back to login</button>
+        <button className="btn-secondary" onClick={goBackToLogin}>
+          Back to login
+        </button>
       </div>
 
       {/* Main grid */}
@@ -247,6 +205,7 @@ export default function AdminPage() {
               <label className="label">Title</label>
               <input className="input" value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="e.g. OS Quiz – Week 3" />
             </div>
+
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <label className="label">Timer (minutes)</label>
@@ -261,29 +220,23 @@ export default function AdminPage() {
             <div className="space-y-5">
               {questions.map((q, qi) => (
                 <div key={qi} className="border rounded-xl p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="font-medium">Question {qi + 1}</div>
-                    {questions.length > MIN_Q && (
-                      <button type="button" className="btn-secondary" onClick={()=>removeQuestion(qi)}>Remove</button>
-                    )}
-                  </div>
-                  <input className="input mb-3" placeholder="Enter question text" value={q.text} onChange={(e)=>updateQuestionText(qi, e.target.value)} />
+                  <div className="mb-2 font-medium">Question {qi + 1}</div>
+                  <input className="input mb-3" placeholder="Enter question text"
+                    value={q.text} onChange={(e)=>updateQuestionText(qi, e.target.value)} />
                   <div className="grid sm:grid-cols-2 gap-3">
                     {q.options.map((opt, oi) => (
                       <div key={oi} className="flex items-center gap-2">
-                        <input type="radio" name={`q${qi}-correct`} checked={q.correctIndex === oi} onChange={()=>setCorrect(qi, oi)} />
+                        <input type="radio" name={`q${qi}-correct`}
+                          checked={q.correctIndex === oi} onChange={()=>setCorrect(qi, oi)} />
                         <span className="w-6 text-center font-semibold">{opt.label}</span>
-                        <input className="input flex-1" placeholder={`Option ${opt.label}`} value={opt.text} onChange={(e)=>updateOptionText(qi, oi, e.target.value)} />
+                        <input className="input flex-1" placeholder={`Option ${opt.label}`}
+                          value={opt.text} onChange={(e)=>updateOptionText(qi, oi, e.target.value)} />
                       </div>
                     ))}
                   </div>
                   <p className="text-xs text-gray-500 mt-2">The selected radio marks the correct answer.</p>
                 </div>
               ))}
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-600">{questions.length} / {MAX_Q} questions</div>
-                <button type="button" className="btn-secondary" onClick={addQuestion} disabled={questions.length >= MAX_Q}>+ Add question</button>
-              </div>
             </div>
 
             <button className="btn-primary" disabled={!canSave}>Create poll</button>
@@ -302,31 +255,31 @@ export default function AdminPage() {
                     <div className="font-medium">{p.title}</div>
                     <div className="text-sm text-gray-500">Status: {p.status} • Code: {p.joinCode}</div>
                     {p.securityCode && (
-                      <div className="text-xs text-gray-600 mt-1">Security code: <span className="font-mono">{p.securityCode}</span></div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        Security code: <span className="font-mono">{p.securityCode}</span>
+                      </div>
                     )}
                   </div>
+
                   <div className="flex gap-2">
                     {p.status === 'draft' && (
-                      <button className="btn-primary" onClick={()=>openLobby(p)}>Open for joining</button>
+                      <button className="btn-primary" onClick={()=>openPoll(p.id).then(refresh)}>Open for joining</button>
                     )}
                     {p.status === 'open' && (
                       <>
-                        <button className="btn-primary" onClick={()=>setLobbyFor(p)}>View lobby</button>
+                        <button className="btn-primary" onClick={()=>startPoll(p.id).then(refresh)}>Start</button>
                         <button className="btn-secondary" onClick={()=>closePoll(p.id).then(refresh)}>Close</button>
                       </>
                     )}
                     {p.status === 'live' && (
                       <button className="btn-secondary" onClick={()=>closePoll(p.id).then(refresh)}>End</button>
                     )}
-                    {p.status === 'closed' && (
-                      <button className="btn-primary" onClick={()=>openLobby(p)}>Open for joining</button>
-                    )}
                     <button className="btn-secondary" onClick={()=>openEditModal(p)}>Edit</button>
                     <button className="btn-secondary" onClick={()=>confirmDelete(p.id)}>Delete</button>
                   </div>
                 </div>
 
-                {/* quick settings — auto-save on blur */}
+                {/* quick settings */}
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
                     <label className="label">Timer (minutes)</label>
@@ -339,7 +292,6 @@ export default function AdminPage() {
                         ...prev,
                         [p.id]: { ...(prev[p.id] ?? { minutes: 5, securityCode: '' }), minutes: Number(e.target.value) }
                       }))}
-                      onBlur={()=>savePollSettings(p)}
                     />
                   </div>
                   <div>
@@ -352,22 +304,12 @@ export default function AdminPage() {
                         ...prev,
                         [p.id]: { ...(prev[p.id] ?? { minutes: 5, securityCode: '' }), securityCode: e.target.value }
                       }))}
-                      onBlur={()=>savePollSettings(p)}
                     />
                   </div>
                 </div>
 
-                {/* actions: only Stats */}
-                <div className="flex justify-end gap-2">
-                  <button
-                    className="btn-primary"
-                    onClick={() => {
-                      setRole('lecturer') // ensure the guard lets us in
-                      navigate(`/stats/${p.id}`)
-                    }}
-                  >
-                    Stats
-                  </button>
+                <div className="flex justify-end">
+                  <button className="btn-secondary" onClick={()=>savePollSettings(p)}>Save settings</button>
                 </div>
               </div>
             ))}
@@ -390,20 +332,20 @@ export default function AdminPage() {
             <div className="space-y-5">
               {editing.questions.map((q, qi) => (
                 <div key={qi} className="border rounded-xl p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="font-medium">Question {qi + 1}</div>
-                  </div>
-                  <input className="input mb-3" placeholder="Enter question text" value={q.text} onChange={(e)=>editUpdateQText(qi, e.target.value)} />
+                  <div className="mb-2 font-medium">Question {qi + 1}</div>
+                  <input className="input mb-3" value={q.text}
+                    onChange={(e)=>editUpdateQText(qi, e.target.value)} />
                   <div className="grid sm:grid-cols-2 gap-3">
                     {q.options.map((opt, oi) => (
                       <div key={oi} className="flex items-center gap-2">
-                        <input type="radio" name={`edit-q${qi}-correct`} checked={q.correctIndex === oi} onChange={()=>editSetCorrect(qi, oi)} />
+                        <input type="radio" name={`edit-q${qi}-correct`}
+                          checked={q.correctIndex === oi} onChange={()=>editSetCorrect(qi, oi)} />
                         <span className="w-6 text-center font-semibold">{opt.label}</span>
-                        <input className="input flex-1" placeholder={`Option ${opt.label}`} value={opt.text} onChange={(e)=>editUpdateOpt(qi, oi, e.target.value)} />
+                        <input className="input flex-1" value={opt.text}
+                          onChange={(e)=>editUpdateOpt(qi, oi, e.target.value)} />
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">The selected radio marks the correct answer.</p>
                 </div>
               ))}
             </div>
@@ -411,43 +353,6 @@ export default function AdminPage() {
             <div className="mt-6 flex justify-end gap-2">
               <button className="btn-secondary" onClick={()=>setEditing(null)}>Cancel</button>
               <button className="btn-primary" disabled={!canSaveEdit} onClick={confirmSaveEdit}>Save changes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LOBBY MODAL */}
-      {lobbyFor && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Lobby — {lobbyFor.title}</h3>
-              <button className="btn-secondary" onClick={()=>setLobbyFor(null)}>Close</button>
-            </div>
-            <div className="mb-3 text-sm">
-              Share code <span className="font-mono font-semibold">{lobbyFor.joinCode}</span>
-              {lobbyFor.securityCode ? <> • Security: <span className="font-mono">{lobbyFor.securityCode}</span></> : null}
-            </div>
-            <div className="border rounded-xl p-3 max-h-64 overflow-auto">
-              {lobbyList.length === 0 ? (
-                <div className="text-gray-500 text-sm">No students yet…</div>
-              ) : (
-                <ul className="space-y-1">
-                  {lobbyList.map(s => (
-                    <li key={s} className="flex items-center justify-between">
-                      <span className="font-mono">{s}</span>
-                      <button className="btn-secondary" onClick={()=>kickFromLobby(lobbyFor.id, s).then(()=>listLobby(lobbyFor.id).then(setLobbyList))}>Kick</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-sm text-gray-600">{lobbyList.length} joined</div>
-              <div className="flex gap-2">
-                <button className="btn-secondary" onClick={lobbyClose}>Close lobby</button>
-                <button className="btn-primary" onClick={lobbyStart}>Start poll</button>
-              </div>
             </div>
           </div>
         </div>
