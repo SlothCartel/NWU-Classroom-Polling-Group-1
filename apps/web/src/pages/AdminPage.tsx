@@ -56,24 +56,33 @@ export default function AdminPage() {
   } | null>(null);
 
   // LOBBY MODAL
-  const [lobbyFor, setLobbyFor] = useState<Poll | null>(null);
-  const [lobbyList, setLobbyList] = useState<string[]>([]);
-  useEffect(() => {
-    if (!lobbyFor) return;
-    let stop = false;
-    async function tick() {
-      try {
-        const list = await listLobby(lobbyFor.id);
-        if (!stop) setLobbyList(list);
-      } finally {
-        if (!stop) setTimeout(tick, 1500);
-      }
+const [lobbyFor, setLobbyFor] = useState<Poll | null>(null);
+const [lobbyList, setLobbyList] = useState<string[]>([]);
+
+useEffect(() => {
+  if (!lobbyFor) return;             // guard
+
+  const pollId = lobbyFor.id;        // capture non-null id for the closure
+  let stopped = false;
+  let timer: number | undefined;
+
+  const tick = async () => {
+    try {
+      const list = await listLobby(pollId);
+      if (!stopped) setLobbyList(list);
+    } finally {
+      if (!stopped) timer = window.setTimeout(tick, 1500);
     }
-    tick();
-    return () => {
-      stop = true;
-    };
-  }, [lobbyFor]);
+  };
+
+  tick();
+
+  // cleanup on unmount / when poll changes
+  return () => {
+    stopped = true;
+    if (timer !== undefined) window.clearTimeout(timer);
+  };
+}, [lobbyFor?.id]);
 
   async function refresh() {
     const data = await listPolls();
