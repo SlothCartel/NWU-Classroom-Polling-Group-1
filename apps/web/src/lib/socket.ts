@@ -1,22 +1,16 @@
-type Listener = (_payload?: any) => void;
+import { io, Socket } from "socket.io-client";
+import { getToken } from "./auth";
 
-const channels = new Map<string, Set<Listener>>();
+let socket: Socket | null = null;
 
-export function subscribe(channel: string, cb: Listener): () => void {
-  let set = channels.get(channel);
-  if (!set) {
-    set = new Set();
-    channels.set(channel, set);
-  }
-  set.add(cb);
-  return () => {
-    set!.delete(cb);
-    if (set!.size === 0) channels.delete(channel);
-  };
+export function getSocket(): Socket {
+  if (socket) return socket;
+  const serverBase = (import.meta.env.VITE_API_BASE_URL as string).replace(/\/api$/, "");
+  socket = io(serverBase, { auth: { token: getToken() || "" }, transports: ["websocket"] });
+  return socket;
 }
 
-export function publish(channel: string, payload?: any) {
-  const set = channels.get(channel);
-  if (!set) return;
-  for (const cb of set) cb(payload);
-}
+export const joinPollRoom = (pollId: string | number) => getSocket().emit("join-poll", String(pollId));
+export const leavePollRoom = (pollId: string | number) => getSocket().emit("leave-poll", String(pollId));
+export const sendLiveSelection = (pollId: string | number, questionId: number, optionIndex: number) =>
+  getSocket().emit("select-answer", { pollId, questionId, optionIndex });

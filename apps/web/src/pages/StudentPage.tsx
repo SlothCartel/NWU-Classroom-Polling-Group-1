@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { listStudentSubmissions, deleteStudentSubmission } from "@/lib/api";
-import type { StoredSubmission } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 import { studentSignOut, getStudentNumber } from "@/lib/studentAuth";
 import { getRole, setRole } from "@/lib/auth";
+import type { QuizOption, StoredSubmission } from "@/lib/types";
 
-function formatDate(ts: number) {
+// UI feedback shape the modal expects when rendering details.
+// We cast the server's feedback to this shape at render time.
+type UIFeedback = {
+  qIndex: number;
+  question: string;
+  options: QuizOption[];
+  chosenIndex: number;
+  correctIndex: number;
+  correct: boolean;
+};
+
+function formatDate(ts: string | number | Date) {
   const d = new Date(ts);
-  return (
-    d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function StudentPage() {
@@ -45,7 +54,7 @@ export default function StudentPage() {
   async function handleDelete(pollId: string) {
     if (!hasStudent) return;
     if (!confirm("Delete this result from your history?")) return;
-    await deleteStudentSubmission(pollId, studentNumber.trim());
+    await deleteStudentSubmission(String(pollId), String(studentNumber).trim());
     await refresh();
   }
 
@@ -122,46 +131,51 @@ export default function StudentPage() {
           ) : (
             <div className="max-h-[60vh] overflow-auto pr-1">
               <ul className="space-y-3">
-                {subs.map((s) => (
-                  <li key={s.pollId}>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="w-full text-left rounded-2xl border border-purple-100 hover:border-purple-200 bg-white p-4 shadow-sm hover:shadow transition outline-none focus:ring-2 focus:ring-purple-400"
-                      onClick={() => setSelected(s)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") setSelected(s);
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        {/* Left: poll info */}
-                        <div>
-                          <div className="text-lg font-bold text-gray-900">{s.title}</div>
-                          <div className="text-xs text-gray-500">
-                            Code: {s.joinCode} • {formatDate(s.submittedAt)}
+                {subs.map((s) => {
+                  const title = s.title || s.pollTitle || `Poll #${s.pollId}`;
+                  const code = s.joinCode ?? ""; // may be undefined
+                  return (
+                    <li key={s.pollId}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="w-full text-left rounded-2xl border border-purple-100 hover:border-purple-200 bg-white p-4 shadow-sm hover:shadow transition outline-none focus:ring-2 focus:ring-purple-400"
+                        onClick={() => setSelected(s)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") setSelected(s);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          {/* Left: poll info */}
+                          <div>
+                            <div className="text-lg font-bold text-gray-900">{title}</div>
+                            <div className="text-xs text-gray-500">
+                              {code ? <>Code: {code} • </> : null}
+                              {formatDate(s.submittedAt)}
+                            </div>
+                          </div>
+
+                          {/* Right: score + delete */}
+                          <div className="flex items-center gap-3">
+                            <span className="inline-block rounded-full px-4 py-2 bg-purple-100 text-purple-800 text-sm font-bold shadow-inner">
+                              {s.score}/{s.total}
+                            </span>
+                            <button
+                              className="btn-secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(String(s.pollId));
+                              }}
+                              aria-label="Delete this result"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-
-                        {/* Right: score + delete */}
-                        <div className="flex items-center gap-3">
-                          <span className="inline-block rounded-full px-4 py-2 bg-purple-100 text-purple-800 text-sm font-bold shadow-inner">
-                            {s.score}/{s.total}
-                          </span>
-                          <button
-                            className="btn-secondary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(s.pollId);
-                            }}
-                            aria-label="Delete this result"
-                          >
-                            Delete
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -173,7 +187,9 @@ export default function StudentPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">{selected.title} — Result</h3>
+              <h3 className="text-lg font-semibold">
+                {(selected.title || selected.pollTitle || `Poll #${selected.pollId}`) + " — Result"}
+              </h3>
               <button className="btn-secondary" onClick={() => setSelected(null)}>
                 Close
               </button>
@@ -186,11 +202,15 @@ export default function StudentPage() {
             </div>
 
             <div className="space-y-4">
-              {selected.feedback.map((f) => {
-                const correctLabel = f.options[f.correctIndex]?.label ?? "?";
+              {(selected.feedback as unknown as UIFeedback[]).map((f) => {
+                // safe lookups with fallbacks to avoid runtime issues
+                const correctLabel = f.options?.[f.correctIndex]?.label ?? "?";
                 const chosenLabel =
-                  f.chosenIndex >= 0 ? (f.options[f.chosenIndex]?.label ?? "?") : "—";
+                  Number.isInteger(f.chosenIndex) && f.chosenIndex >= 0
+                    ? f.options?.[f.chosenIndex]?.label ?? "?"
+                    : "—";
                 const badge = f.correct ? "text-green-700" : "text-red-700";
+
                 return (
                   <div key={f.qIndex} className="rounded-xl border border-gray-200 p-4">
                     <div className="flex items-center justify-between">
@@ -201,23 +221,22 @@ export default function StudentPage() {
                         {f.correct ? "correct" : "incorrect"} • {f.correct ? "1" : "0"} out 1
                       </span>
                     </div>
+
                     <div className="mt-3 grid sm:grid-cols-2 gap-2">
-                      {f.options.map((opt, oi) => {
+                      {f.options?.map((opt, oi) => {
                         const isChosen = oi === f.chosenIndex;
                         const isCorrect = oi === f.correctIndex;
                         const bg = isCorrect
                           ? "bg-green-100"
                           : isChosen && !isCorrect
-                            ? "bg-red-100"
-                            : "bg-gray-100";
+                          ? "bg-red-100"
+                          : "bg-gray-100";
                         const ring = isChosen ? "ring-2 ring-offset-2" : "";
                         return (
                           <div key={oi} className={`rounded-lg px-3 py-2 ${bg} ${ring}`}>
                             <span className="font-semibold mr-2">{opt.label}.</span>
                             {opt.text}
-                            {isCorrect && (
-                              <span className="ml-2 text-green-700 text-xs">(correct)</span>
-                            )}
+                            {isCorrect && <span className="ml-2 text-green-700 text-xs">(correct)</span>}
                             {isChosen && !isCorrect && (
                               <span className="ml-2 text-red-700 text-xs">(your choice)</span>
                             )}
@@ -225,10 +244,10 @@ export default function StudentPage() {
                         );
                       })}
                     </div>
+
                     <p className="text-sm mt-3">
-                      You selected <strong>{chosenLabel}</strong> —{" "}
-                      {f.correct ? "correct" : "incorrect"}. Correct Answer{" "}
-                      <strong>{correctLabel}</strong>.
+                      You selected <strong>{chosenLabel}</strong> — {f.correct ? "correct" : "incorrect"}.{" "}
+                      Correct Answer <strong>{correctLabel}</strong>.
                     </p>
                   </div>
                 );
