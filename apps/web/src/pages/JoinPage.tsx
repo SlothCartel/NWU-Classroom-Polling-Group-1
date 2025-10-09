@@ -20,6 +20,7 @@ export default function JoinPage() {
   // poll + answers
   const [poll, setPoll] = useState<StudentPoll | null>(null);
   const [answers, setAnswers] = useState<number[]>([]); // -1 = unanswered
+  const answersRef = useRef<number[]>([]);              // <-- source of truth when submitting
   const [result, setResult] = useState<SubmitResult | null>(null);
 
   // ui
@@ -75,6 +76,12 @@ export default function JoinPage() {
       saveStudentNumber(studentNumber.trim());
       setRole("student");
 
+      const initAnswers = (qCount: number) => {
+        const init = Array(qCount).fill(-1) as number[];
+        setAnswers(init);
+        answersRef.current = init;            // <-- keep ref in sync on init
+      };
+
       if (meta.status === "open") {
         setWaiting(true);
         const loop = async () => {
@@ -83,7 +90,7 @@ export default function JoinPage() {
             if (m.status === "live") {
               setWaiting(false);
               setPoll(m);
-              setAnswers(Array(m.questions.length).fill(-1));
+              initAnswers(m.questions.length);
             } else {
               setTimeout(loop, 2000);
             }
@@ -94,7 +101,7 @@ export default function JoinPage() {
         loop();
       } else if (meta.status === "live") {
         setPoll(meta);
-        setAnswers(Array(meta.questions.length).fill(-1));
+        initAnswers(meta.questions.length);
       } else if (meta.status === "closed") {
         setError("This poll is closed and no longer accepting answers.");
       } else {
@@ -111,6 +118,7 @@ export default function JoinPage() {
     setAnswers((prev) => {
       const copy = [...prev];
       copy[qIdx] = choiceIdx;
+      answersRef.current = copy;             // <-- keep ref in sync on every change
       return copy;
     });
     if (poll && studentNumber.trim()) {
@@ -119,67 +127,82 @@ export default function JoinPage() {
   }
 
   const canSubmit = useMemo(() => {
+    // allow manual submit only while timer > 0; timer/ended paths submit regardless
     return !!poll && !result && studentNumber.trim().length > 0 && remaining > 0;
   }, [poll, result, studentNumber, remaining]);
 
   async function submitNow(_reason: "manual" | "timeup" | "ended") {
-  if (!poll || autoSubmittedRef.current || result) return;
-  autoSubmittedRef.current = true;
-  setError(null);
+    if (!poll || autoSubmittedRef.current || result) return;
+    autoSubmittedRef.current = true;
+    setError(null);
 
-  try {
-    // ✅ ensure we send one entry per question, defaulting to -1 if unanswered
-    const filledAnswers = poll.questions.map((_, i) =>
-      Number.isInteger(answers[i]) ? (answers[i] as number) : -1
+    // Always submit from the ref (avoids stale closure issues)
+    const current = answersRef.current && answersRef.current.length
+      ? answersRef.current
+      : Array(poll.questions.length).fill(-1);
+
+    // Pad to full length (extra safety)
+    const padded = poll.questions.map((_, i) =>
+      typeof current[i] === "number" ? current[i] : -1,
     );
 
-    const res = await submitAnswers({
-      pollId: poll.id,
-      answers: filledAnswers,
-      studentNumber: studentNumber.trim(),
-      securityCode: securityCode.trim() || undefined,
-    });
-
-    setResult(res);
-    setDeadline(null);
-  } catch (err: any) {
-    setError(err.message || "Submission failed");
-    autoSubmittedRef.current = false;
+    try {
+      const res = await submitAnswers({
+        pollId: poll.id,
+        answers: padded,
+        studentNumber: studentNumber.trim(),
+        securityCode: securityCode.trim() || undefined,
+      });
+      setResult(res);
+      setDeadline(null);
+    } catch (err: any) {
+      setError(err.message || "Submission failed");
+      autoSubmittedRef.current = false;
+    }
   }
-}
 
   async function handleSubmit() {
     await submitNow("manual");
   }
 
-useEffect(() => {
-  if (!poll || result) return;
-  if (deadline == null) return;
+  // Timer autosubmit
+  useEffect(() => {
+    if (!poll || result) return;
+    if (deadline == null) return;
 
-  if (!autoSubmittedRef.current && Date.now() >= deadline) {
-    submitNow("timeup");
-  }
-}, [tick, poll, result, deadline]);
+    if (!autoSubmittedRef.current && Date.now() >= deadline) {
+      submitNow("timeup");
+    }
+  }, [tick, poll, result, deadline]);
 
+  // Poll status watcher — if lecturer ends the poll, submit exactly like the timer
   useEffect(() => {
     if (!poll || result) return;
     let cancelled = false;
-    async function pollStatus() {
+
+    const check = async () => {
       try {
         const m = await getPollByCode(joinCode.trim());
         if (cancelled) return;
-        if (m.status === "live" || m.status === "open") {
-          setTimeout(pollStatus, 2000);
-        } else if (m.status === "closed") {
-          if (!autoSubmittedRef.current) submitNow("ended");
+
+        if (m.status === "closed") {
+          if (!autoSubmittedRef.current) {
+            await submitNow("ended");
+          }
+          return;
+        }
+
+        if (m.status === "open" || m.status === "live") {
+          setTimeout(check, 2000);
         } else {
-          setTimeout(pollStatus, 2000);
+          setTimeout(check, 2000);
         }
       } catch {
-        if (!cancelled) setTimeout(pollStatus, 2000);
+        if (!cancelled) setTimeout(check, 2000);
       }
-    }
-    pollStatus();
+    };
+
+    check();
     return () => {
       cancelled = true;
     };
