@@ -29,11 +29,7 @@ export default function AdminPage() {
   const navigate = useNavigate();
 
   function goBackToLogin() {
-    try {
-      clearAuth();
-    } catch {
-      // Ignore auth clear errors
-    }
+    try { clearAuth(); } catch {}
     navigate("/login", { replace: true });
   }
 
@@ -56,33 +52,38 @@ export default function AdminPage() {
   } | null>(null);
 
   // LOBBY MODAL
-const [lobbyFor, setLobbyFor] = useState<Poll | null>(null);
-const [lobbyList, setLobbyList] = useState<string[]>([]);
+  const [lobbyFor, setLobbyFor] = useState<Poll | null>(null);
+  const [lobbyList, setLobbyList] = useState<string[]>([]);
 
+  // --- Live lobby poller: instant fetch + repeat every 1s while modal is open
 useEffect(() => {
-  if (!lobbyFor) return;             // guard
+  if (!lobbyFor) return;
 
-  const pollId = lobbyFor.id;        // capture non-null id for the closure
+  const pollId = Number(lobbyFor.id); // ensure numeric id
   let stopped = false;
   let timer: number | undefined;
 
-  const tick = async () => {
+  async function tick() {
     try {
       const list = await listLobby(pollId);
+      // quick debug to verify what the API sends back:
+      console.debug("Lobby list for", pollId, list);
       if (!stopped) setLobbyList(list);
+    } catch (err) {
+      console.warn("Lobby poll failed:", err);
     } finally {
-      if (!stopped) timer = window.setTimeout(tick, 1500);
+      if (!stopped) timer = window.setTimeout(tick, 1000); // poll ~1s
     }
-  };
+  }
 
+  // initial fetch + schedule
   tick();
 
-  // cleanup on unmount / when poll changes
   return () => {
     stopped = true;
-    if (timer !== undefined) window.clearTimeout(timer);
+    if (timer) window.clearTimeout(timer);
   };
-}, [lobbyFor?.id]);
+}, [lobbyFor]);
 
   async function refresh() {
     const data = await listPolls();
@@ -96,6 +97,7 @@ useEffect(() => {
     });
     setEdits(next);
   }
+
   useEffect(() => {
     void refresh();
   }, []);
@@ -220,6 +222,7 @@ useEffect(() => {
         : prev,
     );
   }
+
   const canSaveEdit = useMemo(() => {
     if (!editing) return false;
     if (!editing.title.trim()) return false;
@@ -231,6 +234,7 @@ useEffect(() => {
     }
     return true;
   }, [editing]);
+
   async function confirmSaveEdit() {
     if (!editing || !canSaveEdit) return;
     await updatePoll(editing.id, {
@@ -244,6 +248,7 @@ useEffect(() => {
     setEditing(null);
     await refresh();
   }
+
   async function confirmDelete(id: string) {
     if (!confirm("Delete this poll? This cannot be undone.")) return;
     await deletePoll(id);
@@ -254,18 +259,18 @@ useEffect(() => {
   async function openLobby(p: Poll) {
     await openPoll(p.id);
     await refresh();
-    setLobbyFor(p);
+    setLobbyFor(p); // opening modal starts the poller
   }
   async function lobbyStart() {
     if (!lobbyFor) return;
     await startPoll(lobbyFor.id);
-    setLobbyFor(null);
+    setLobbyFor(null); // stop poller
     await refresh();
   }
   async function lobbyClose() {
     if (!lobbyFor) return;
     await closePoll(lobbyFor.id);
-    setLobbyFor(null);
+    setLobbyFor(null); // stop poller
     await refresh();
   }
 
@@ -487,7 +492,7 @@ useEffect(() => {
                   <button
                     className="btn-primary"
                     onClick={() => {
-                      setRole("lecturer"); // ensure the guard lets us in
+                      setRole("lecturer");
                       navigate(`/stats/${p.id}`);
                     }}
                   >
@@ -596,11 +601,11 @@ useEffect(() => {
                       <span className="font-mono">{s}</span>
                       <button
                         className="btn-secondary"
-                        onClick={() =>
-                          kickFromLobby(lobbyFor.id, s).then(() =>
-                            listLobby(lobbyFor.id).then(setLobbyList),
-                          )
-                        }
+                        onClick={async () => {
+                          await kickFromLobby(lobbyFor.id, s);
+                          const list = await listLobby(lobbyFor.id);
+                          setLobbyList(list);
+                        }}
                       >
                         Kick
                       </button>

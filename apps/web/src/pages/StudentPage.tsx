@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { listStudentSubmissions, deleteStudentSubmission } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
-import { studentSignOut, getStudentNumber } from "@/lib/studentAuth";
-import { getRole, setRole } from "@/lib/auth";
+import { listStudentSubmissions, deleteStudentSubmission } from "@/lib/api";
+import { clearAuth, getStudentNumber, setRole, getRole } from "@/lib/auth";
 import type { QuizOption, StoredSubmission } from "@/lib/types";
 
-// UI feedback shape the modal expects when rendering details.
-// We cast the server's feedback to this shape at render time.
 type UIFeedback = {
   qIndex: number;
   question: string;
@@ -18,7 +15,11 @@ type UIFeedback = {
 
 function formatDate(ts: string | number | Date) {
   const d = new Date(ts);
-  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    d.toLocaleDateString() +
+    " " +
+    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 export default function StudentPage() {
@@ -29,20 +30,29 @@ export default function StudentPage() {
     if (getRole() !== "student") setRole("student");
   }, []);
 
-  const [studentNumber, setStudentNumber] = useState<string>("");
+  const [studentNumber, setStudentNo] = useState<string>("");
   const [subs, setSubs] = useState<StoredSubmission[]>([]);
   const [selected, setSelected] = useState<StoredSubmission | null>(null);
+
   const hasStudent = useMemo(() => studentNumber.trim().length > 0, [studentNumber]);
 
-  // Auto-load results for the signed-in student
-  useEffect(() => {
-    const n = (typeof getStudentNumber === "function" ? getStudentNumber() : "") || "";
-    setStudentNumber(n);
-    if (n) {
-      listStudentSubmissions(n)
-        .then(setSubs)
-        .catch(() => setSubs([]));
+  async function load() {
+    const n = getStudentNumber() || "";
+    setStudentNo(n);
+    if (!n) {
+      setSubs([]);
+      return;
     }
+    try {
+      const data = await listStudentSubmissions(n);
+      setSubs(data);
+    } catch {
+      setSubs([]);
+    }
+  }
+
+  useEffect(() => {
+    void load();
   }, []);
 
   async function refresh() {
@@ -77,7 +87,7 @@ export default function StudentPage() {
 
       <div className="mx-auto max-w-4xl px-4 pb-16">
         <div className="bg-white/95 backdrop-blur rounded-3xl shadow-xl p-5 md:p-6">
-          {/* top controls (unchanged) */}
+          {/* top controls */}
           <div className="flex items-center justify-between gap-4 mb-5">
             <div className="flex items-center gap-2">
               <button
@@ -92,7 +102,7 @@ export default function StudentPage() {
               <button
                 className="btn-secondary"
                 onClick={() => {
-                  studentSignOut();
+                  clearAuth();
                   navigate("/student-login");
                 }}
               >
@@ -133,7 +143,7 @@ export default function StudentPage() {
               <ul className="space-y-3">
                 {subs.map((s) => {
                   const title = s.title || s.pollTitle || `Poll #${s.pollId}`;
-                  const code = s.joinCode ?? ""; // may be undefined
+                  const code = s.joinCode ?? "";
                   return (
                     <li key={s.pollId}>
                       <div
@@ -146,7 +156,6 @@ export default function StudentPage() {
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          {/* Left: poll info */}
                           <div>
                             <div className="text-lg font-bold text-gray-900">{title}</div>
                             <div className="text-xs text-gray-500">
@@ -155,7 +164,6 @@ export default function StudentPage() {
                             </div>
                           </div>
 
-                          {/* Right: score + delete */}
                           <div className="flex items-center gap-3">
                             <span className="inline-block rounded-full px-4 py-2 bg-purple-100 text-purple-800 text-sm font-bold shadow-inner">
                               {s.score}/{s.total}
@@ -203,7 +211,6 @@ export default function StudentPage() {
 
             <div className="space-y-4">
               {(selected.feedback as unknown as UIFeedback[]).map((f) => {
-                // safe lookups with fallbacks to avoid runtime issues
                 const correctLabel = f.options?.[f.correctIndex]?.label ?? "?";
                 const chosenLabel =
                   Number.isInteger(f.chosenIndex) && f.chosenIndex >= 0
@@ -236,7 +243,9 @@ export default function StudentPage() {
                           <div key={oi} className={`rounded-lg px-3 py-2 ${bg} ${ring}`}>
                             <span className="font-semibold mr-2">{opt.label}.</span>
                             {opt.text}
-                            {isCorrect && <span className="ml-2 text-green-700 text-xs">(correct)</span>}
+                            {isCorrect && (
+                              <span className="ml-2 text-green-700 text-xs">(correct)</span>
+                            )}
                             {isChosen && !isCorrect && (
                               <span className="ml-2 text-red-700 text-xs">(your choice)</span>
                             )}
@@ -246,8 +255,9 @@ export default function StudentPage() {
                     </div>
 
                     <p className="text-sm mt-3">
-                      You selected <strong>{chosenLabel}</strong> — {f.correct ? "correct" : "incorrect"}.{" "}
-                      Correct Answer <strong>{correctLabel}</strong>.
+                      You selected <strong>{chosenLabel}</strong> —{" "}
+                      {f.correct ? "correct" : "incorrect"}. Correct Answer{" "}
+                      <strong>{correctLabel}</strong>.
                     </p>
                   </div>
                 );

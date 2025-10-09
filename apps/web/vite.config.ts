@@ -12,4 +12,14 @@ export default defineConfig({
       "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8080",
+        changeOrigin: true,
+        secure: false,
+        // keep "/api" (your backend is mounted at /api already)
+      },
+    },
+  },
 });
