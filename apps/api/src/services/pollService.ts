@@ -174,6 +174,104 @@ export class PollService {
       })),
     };
   }
+  /**
+   * Update poll meta (title/timer/security) and optionally REPLACE questions.
+   * For safety, question edits are blocked if submissions already exist.
+   */
+  async updatePoll(
+    pollId: number,
+    userId: number,
+    data: {
+      title?: string;
+      timerSeconds?: number;
+      securityCode?: string | null;
+      questions?: QuizQuestion[]; // full replacement if provided
+    }
+  ) {
+    // Verify ownership
+    const poll = await prisma.poll.findFirst({
+      where: { id: pollId, created_by: userId },
+      include: {
+        _count: { select: { submissions: true } },
+        questions: { select: { id: true } },
+      },
+    });
+    if (!poll) throw new Error("Poll not found or access denied");
+
+    // 1) Update basic meta first
+    const meta = await prisma.poll.update({
+      where: { id: pollId },
+      data: {
+        title: data.title ?? undefined,
+        timerSeconds: data.timerSeconds ?? undefined,
+        securityCode:
+          data.securityCode === null
+            ? null
+            : data.securityCode ?? undefined,
+      },
+    });
+
+    // 2) If questions provided -> full replace
+    if (data.questions) {
+      // Safety: block question edits if any submissions exist
+      if (poll._count.submissions > 0) {
+        throw new Error("Cannot edit questions after students have submitted");
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const qids = poll.questions.map((q) => q.id);
+        if (qids.length) {
+          await tx.option.deleteMany({ where: { question_id: { in: qids } } });
+          await tx.question.deleteMany({ where: { id: { in: qids } } });
+        }
+
+        // Recreate questions + options
+        if (data.questions.length) {
+          await tx.question.createMany({
+            data: data.questions.map((q, i) => ({
+              poll_id: pollId,
+              question_text: q.text,
+              question_type: "multiple_choice",
+              correctIndex: q.correctIndex,
+              // prisma.createMany can't do nested creates; create options below
+            })),
+          });
+
+          // fetch newly created questions (ordered by id)
+          const createdQs = await tx.question.findMany({
+            where: { poll_id: pollId },
+            orderBy: { id: "asc" },
+            select: { id: true },
+          });
+
+          // Flatten options with matching indices
+          const optionRows: { question_id: number; option_text: string; optionIndex: number }[] =
+            [];
+          createdQs.forEach((dbQ, idx) => {
+            const srcQ = data.questions![idx];
+            srcQ.options.forEach((opt) => {
+              optionRows.push({
+                question_id: dbQ.id,
+                option_text: opt.text,
+                optionIndex: opt.index,
+              });
+            });
+          });
+
+          if (optionRows.length) {
+            await tx.option.createMany({ data: optionRows });
+          }
+        }
+      });
+    }
+
+    // Return fresh formatted poll
+    const updated = await prisma.poll.findUnique({
+      where: { id: pollId },
+      include: { questions: { include: { options: true } } },
+    });
+    return this.formatPollResponse(updated!);
+  }
 }
 
 // Export both the class and an instance
