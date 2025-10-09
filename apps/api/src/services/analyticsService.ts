@@ -1,158 +1,172 @@
 import { prisma } from "../config/database";
 
+const LABELS = ["A", "B", "C", "D"] as const;
+
 export class AnalyticsService {
+  /**
+   * Student history – returns UI-ready structure expected by the web app.
+   */
+  async getStudentSubmissionHistory(studentNumber: string) {
+    const user = await prisma.user.findUnique({
+      where: { studentNumber },
+      select: { id: true },
+    });
+    if (!user) return [];
+
+    const subs = await prisma.submission.findMany({
+      where: { user_id: user.id },
+      orderBy: { submitted_at: "desc" },
+      include: {
+        poll: {
+          select: {
+            id: true,
+            title: true,
+            joinCode: true,
+            questions: {
+              orderBy: { id: "asc" },
+              include: { options: true },
+            },
+          },
+        },
+        answers: {
+          include: {
+            question: { select: { id: true, question_text: true, correctIndex: true } },
+            option: { select: { id: true, option_text: true, optionIndex: true } },
+          },
+        },
+      },
+    });
+
+    return subs.map((s) => {
+      // Map questionId -> index in poll.questions order
+      const qIndexById = new Map<number, number>();
+      s.poll.questions.forEach((q, idx) => qIndexById.set(q.id, idx));
+
+      // Prepare options (A–D) for each question
+      const optionsByQid = new Map<
+        number,
+        { label: string; text: string }[]
+      >();
+      for (const q of s.poll.questions) {
+        const opts = [...q.options]
+          .sort((a, b) => a.optionIndex - b.optionIndex)
+          .map((o) => ({ label: LABELS[o.optionIndex] ?? "A", text: o.option_text }));
+        optionsByQid.set(q.id, opts);
+      }
+
+      // Build ordered feedback
+      const raw = s.answers.map((a) => {
+        const idx = qIndexById.get(a.question_id) ?? 0;
+        return {
+          qIndex: idx,
+          questionId: a.question_id,
+          question: a.question?.question_text ?? "",
+          chosenIndex:
+            typeof a.option?.optionIndex === "number" ? a.option!.optionIndex : -1,
+          correctIndex:
+            typeof a.question?.correctIndex === "number"
+              ? (a.question!.correctIndex as number)
+              : -1,
+          correct: a.is_correct === true,
+        };
+      });
+
+      const feedback = raw
+        .sort((x, y) => x.qIndex - y.qIndex)
+        .map((row) => ({
+          qIndex: row.qIndex,
+          question: row.question,
+          options: optionsByQid.get(row.questionId) ?? [],
+          chosenIndex: row.chosenIndex,
+          correctIndex: row.correctIndex,
+          correct: row.correct,
+        }));
+
+      return {
+        pollId: String(s.poll.id),
+        title: s.poll.title,
+        pollTitle: s.poll.title, // keep both keys for UI tolerance
+        joinCode: s.poll.joinCode,
+        submittedAt: s.submitted_at,
+        score: s.score,
+        total: s.total,
+        feedback,
+      };
+    });
+  }
+
+  /**
+   * Delete a student submission (and its answers) with FK safety.
+   */
+  async deleteStudentSubmission(studentNumber: string, pollId: number) {
+    const user = await prisma.user.findUnique({
+      where: { studentNumber },
+      select: { id: true },
+    });
+    if (!user) throw new Error("Student not found");
+
+    await prisma.$transaction(async (tx) => {
+      const sub = await tx.submission.findUnique({
+        where: { poll_id_user_id: { poll_id: pollId, user_id: user.id } },
+        select: { id: true },
+      });
+      if (!sub) return;
+
+      await tx.answer.deleteMany({ where: { submission_id: sub.id } });
+      await tx.submission.delete({ where: { id: sub.id } });
+    });
+
+    return { success: true, message: "Deleted" };
+  }
+
+  /**
+   * Minimal poll stats for lecturer dashboard (extend as needed).
+   */
   async getPollStats(pollId: number) {
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
       include: {
-        questions: {
-          include: {
-            options: {
-              include: {
-                answers: true,
-              },
-            },
-          },
-        },
-        submissions: true,
+        submissions: { include: { answers: true } },
+        questions: { include: { options: true } },
       },
     });
+    if (!poll) throw new Error("Poll not found");
 
-    if (!poll) {
-      throw new Error("Poll not found");
-    }
+    const attendees = poll.submissions.length;
 
-    const totalSubmissions = poll.submissions.length;
+    // Very basic per-question stats derived from answers
+    const questionIndexById = new Map<number, number>();
+    poll.questions.forEach((q, i) => questionIndexById.set(q.id, i));
 
-    // Calculate stats per question
-    const questionStats = poll.questions.map((question: any) => {
-      const optionStats = question.options.map((option: any) => ({
-        text: option.option_text,
-        index: option.optionIndex,
-        count: option.answers.length,
-        percentage: totalSubmissions > 0 ? (option.answers.length / totalSubmissions) * 100 : 0,
-        isCorrect: option.optionIndex === question.correctIndex,
-      }));
-
-      const correctAnswers = question.options
-        .filter((opt: any) => opt.optionIndex === question.correctIndex)
-        .reduce((sum: number, opt: any) => sum + opt.answers.length, 0);
-
-      return {
-        questionId: question.id,
-        questionText: question.question_text,
-        totalAnswers: optionStats.reduce((sum, opt) => sum + opt.count, 0),
-        correctAnswers,
-        correctPercentage: totalSubmissions > 0 ? (correctAnswers / totalSubmissions) * 100 : 0,
-        options: optionStats.sort((a, b) => a.index - b.index),
-      };
-    });
-
-    // Calculate overall stats
-    const totalPossiblePoints = poll.questions.length * totalSubmissions;
-    const totalCorrectAnswers = questionStats.reduce((sum, q) => sum + q.correctAnswers, 0);
-    const averageScore =
-      totalSubmissions > 0
-        ? poll.submissions.reduce((sum: number, sub: any) => sum + sub.score, 0) / totalSubmissions
-        : 0;
-
-    return {
-      pollId: poll.id,
-      title: poll.title,
-      status: poll.status,
-      totalSubmissions,
-      averageScore: Math.round(averageScore * 100) / 100,
-      averagePercentage:
-        totalPossiblePoints > 0 ? (totalCorrectAnswers / totalPossiblePoints) * 100 : 0,
-      questions: questionStats,
-    };
-  }
-
-  async getStudentSubmissionHistory(studentNumber: string) {
-    const user = await prisma.user.findUnique({
-      where: { studentNumber },
-      include: {
-        Submissions: {
-          // Capital S to match Prisma schema
-          include: {
-            poll: true,
-            answers: {
-              include: {
-                question: true,
-                option: true,
-              },
-            },
-          },
-          orderBy: { submitted_at: "desc" },
-        },
-      },
-    });
-
-    if (!user) {
-      throw new Error("Student not found");
-    }
-
-    return user.Submissions.map((submission: any) => ({
-      pollId: submission.poll.id.toString(),
-      pollTitle: submission.poll.title,
-      score: submission.score,
-      total: submission.total,
-      percentage: Math.round((submission.score / submission.total) * 100),
-      submittedAt: submission.submitted_at,
-      feedback: submission.answers.map((answer: any) => ({
-        questionText: answer.question.question_text,
-        studentChoice: answer.answer_text || "No answer",
-        isCorrect: answer.is_correct,
-      })),
+    const perQuestion = poll.questions.map((q) => ({
+      questionText: q.question_text,
+      totalAnswers: 0,
+      correctAnswers: 0,
     }));
-  }
 
-  async deleteStudentSubmission(studentNumber: string, pollId: number) {
-    const user = await prisma.user.findUnique({
-      where: { studentNumber },
-    });
-
-    if (!user) {
-      throw new Error("Student not found");
+    for (const sub of poll.submissions) {
+      for (const ans of sub.answers) {
+        const qi = questionIndexById.get(ans.question_id);
+        if (qi == null) continue;
+        perQuestion[qi].totalAnswers += 1;
+        if (ans.is_correct) perQuestion[qi].correctAnswers += 1;
+      }
     }
 
-    const deleted = await prisma.submission.deleteMany({
-      where: {
-        poll_id: pollId,
-        user_id: user.id,
-      },
-    });
-
-    if (deleted.count === 0) {
-      throw new Error("Submission not found");
-    }
-
-    return { success: true, message: "Submission deleted successfully" };
+    return { attendees, questions: perQuestion };
   }
 
+  /**
+   * Export poll data (JSON now; CSV placeholder hook).
+   */
   async exportPollData(pollId: number, format: "json" | "csv" = "json") {
-    const stats = await this.getPollStats(pollId);
-
-    if (format === "json") {
-      return stats;
+    const data = await this.getPollStats(pollId);
+    if (format === "csv") {
+      // Optionally convert `data` to CSV here if you want to implement it later.
+      return data; // placeholder
     }
-
-    // For CSV, create a simplified format
-    const csvData = stats.questions.map((q: any) => ({
-      question: q.questionText,
-      totalAnswers: q.totalAnswers,
-      correctAnswers: q.correctAnswers,
-      correctPercentage: q.correctPercentage,
-      ...q.options.reduce((acc: any, opt: any) => {
-        acc[`option_${opt.index}_count`] = opt.count;
-        acc[`option_${opt.index}_percentage`] = opt.percentage;
-        return acc;
-      }, {}),
-    }));
-
-    return csvData;
+    return data;
   }
 }
 
-// Export both the class and an instance
 export const analyticsService = new AnalyticsService();
