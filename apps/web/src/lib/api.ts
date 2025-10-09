@@ -1,3 +1,5 @@
+// apps/web/src/lib/api.ts (top of file – replace the mapping helpers)
+
 import { http } from "./http";
 import { setToken, setRole } from "./auth";
 import type {
@@ -14,6 +16,13 @@ import type {
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
+// --- small normalizers so we tolerate both server shapes ---
+const getQText = (q: any) => q?.text ?? q?.question_text ?? "";
+const getOptIndex = (o: any) =>
+  typeof o?.optionIndex === "number" ? o.optionIndex :
+  typeof o?.index === "number"      ? o.index      : 0;
+const getOptText = (o: any) => o?.option_text ?? o?.text ?? "";
+
 // ---------- map server → UI ----------
 function toUIPoll(p: ServerPoll): Poll {
   return {
@@ -25,15 +34,19 @@ function toUIPoll(p: ServerPoll): Poll {
     timerSeconds: p.timerSeconds,
     securityCode: p.securityCode ?? null,
     createdAt: p.createdAt ?? undefined,
-    questions: p.questions.map((q) => ({
-      text: q.question_text,
-      correctIndex: q.correctIndex ?? 0,
-      options: q.options
-        .sort((a, b) => a.optionIndex - b.optionIndex)
-        .map((o) => ({
-          label: (LABELS[o.optionIndex] ?? "A") as ChoiceLabel,
-          text: o.option_text,
-        })),
+    questions: (p.questions || []).map((q: any) => ({
+      text: getQText(q),
+      correctIndex: typeof q.correctIndex === "number" ? q.correctIndex : 0,
+      options: (q.options || [])
+        .slice()
+        .sort((a: any, b: any) => getOptIndex(a) - getOptIndex(b))
+        .map((o: any) => {
+          const idx = getOptIndex(o);
+          return {
+            label: (LABELS[idx] ?? "A") as ChoiceLabel,
+            text: getOptText(o),
+          };
+        }),
     })),
   };
 }
@@ -44,25 +57,29 @@ function toStudentPoll(p: ServerPoll): StudentPoll {
     title: p.title,
     status: p.status as StudentPoll["status"],
     timerSeconds: p.timerSeconds,
-    questions: p.questions.map((q, qi) => ({
+    questions: (p.questions || []).map((q: any, qi: number) => ({
       id: q.id ?? qi + 1,
-      text: q.question_text,
-      correctIndex: q.correctIndex ?? -1,
-      options: q.options
-        .sort((a, b) => a.optionIndex - b.optionIndex)
-        .map((o) => ({
-          label: (LABELS[o.optionIndex] ?? "A") as ChoiceLabel,
-          text: o.option_text,
-        })),
+      text: getQText(q),
+      correctIndex: typeof q.correctIndex === "number" ? q.correctIndex : -1,
+      options: (q.options || [])
+        .slice()
+        .sort((a: any, b: any) => getOptIndex(a) - getOptIndex(b))
+        .map((o: any) => {
+          const idx = getOptIndex(o);
+          return {
+            label: (LABELS[idx] ?? "A") as ChoiceLabel,
+            text: getOptText(o),
+          };
+        }),
     })),
   };
 }
 
+// keep as-is – backend still expects { text, index }
 function toServerQuestions(qs: QuizQuestion[]) {
   return qs.map((q) => ({
     text: q.text,
     correctIndex: q.correctIndex,
-    // IMPORTANT: backend expects { text, index } on create
     options: q.options.map((o, idx) => ({ text: o.text, index: idx })),
   }));
 }
@@ -259,37 +276,42 @@ export const recordLiveChoice = async (
 // ---------- STUDENT participation ----------
 export const submitAnswers = async (p: {
   pollId: string | number;
-  answers: number[];            // -1 means unanswered
+  answers: number[];          // may be empty if lecturer ends instantly
   studentNumber: string;
   securityCode?: string;
 }): Promise<SubmitResultUI> => {
-  // Build only answered items; backend will treat missing as unanswered
+  // If the UI hasn't populated `answers` yet (rare race when lecturer ends),
+  // create a full-length array of -1 (unanswered) so we *always* send something.
+  const safeAnswers =
+    Array.isArray(p.answers) && p.answers.length > 0
+      ? p.answers
+      : Array.from({ length: lastQuestionIds.length }, () => -1);
+
   const body = {
     studentNumber: p.studentNumber,
     securityCode: p.securityCode ?? null,
-    answers: p.answers
-      .map((optIndex, i) => ({
-        questionId: lastQuestionIds[i] ?? i + 1,
-        optionIndex: optIndex,
-      }))
-      .filter(a => a.optionIndex >= 0),   // << important
+    answers: safeAnswers.map((optIndex, i) => ({
+      questionId: lastQuestionIds[i] ?? i + 1,
+      optionIndex: optIndex, // may be -1 (unanswered) — backend handles it
+    })),
   };
 
   await http.post<ApiOk<any>>(`/polls/${p.pollId}/submit`, body);
 
-  // local feedback (unchanged)
+  // Build client-side feedback using the last poll snapshot we remembered
   const poll = lastStudentPoll;
-  const total = poll?.questions.length ?? p.answers.length;
+  const total = poll?.questions.length ?? safeAnswers.length;
   const feedback =
     poll?.questions.map((q, i) => ({
       qIndex: i,
       question: q.text,
       options: q.options,
-      chosenIndex: p.answers[i],
+      chosenIndex: safeAnswers[i],
       correctIndex: q.correctIndex ?? -1,
-      correct: (q.correctIndex ?? -1) === p.answers[i],
+      correct: (q.correctIndex ?? -1) === safeAnswers[i],
     })) ?? [];
   const score = feedback.filter((f) => f.correct).length;
+
   return { score, total, feedback };
 };
 
