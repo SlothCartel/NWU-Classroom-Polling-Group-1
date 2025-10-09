@@ -1,18 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { setRole } from "@/lib/auth";
-
-type AccountStore = Record<string, { email: string; password: string; createdAt: number }>;
-const LS_KEY = "lecturer_accounts_v1";
-
-function loadAccounts(): AccountStore {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? (JSON.parse(raw) as AccountStore) : {};
-  } catch {
-    return {};
-  }
-}
+import { lecturerSignIn } from "@/lib/api"; // ⬅️ use real API
 
 export default function LecturerLoginPage() {
   const navigate = useNavigate();
@@ -26,15 +14,18 @@ export default function LecturerLoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const db = loadAccounts();
-      const key = email.trim().toLowerCase();
-      const acct = db[key];
-      if (!acct || acct.password !== password) {
-        setError("Invalid email or password.");
-        return;
-      }
-      setRole("lecturer");
+      await lecturerSignIn(email, password); // ⬅️ real login
       navigate("/dashboard", { replace: true });
+    } catch (err: any) {
+      // backend returns { success:false, error:"..." } with 400;
+      // our http helper throws with the response text; show it nicely
+      const msg = err?.message || "Sign-in failed";
+      try {
+        const parsed = JSON.parse(msg);
+        setError(parsed.error || msg);
+      } catch {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

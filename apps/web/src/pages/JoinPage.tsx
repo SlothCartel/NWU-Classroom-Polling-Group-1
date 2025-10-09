@@ -3,7 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPollByCode, studentJoin, submitAnswers, recordLiveChoice } from "@/lib/api";
 import type { StudentPoll, SubmitResult } from "@/lib/types";
-import { setRole } from "@/lib/auth"; // ✅ ensure the student role before guarded routes
+import { setRole } from "@/lib/auth";
+import {
+  setStudentNumber as saveStudentNumber,
+  getStudentNumber as loadStudentNumber,
+} from "@/lib/auth";
 
 export default function JoinPage() {
   const navigate = useNavigate();
@@ -33,9 +37,11 @@ export default function JoinPage() {
 
   const autoSubmittedRef = useRef(false);
 
-  // ✅ Assert student role on mount (prevents guard redirects)
+  // Assert student role on mount and prefill number if we have it
   useEffect(() => {
     setRole("student");
+    const remembered = loadStudentNumber();
+    if (remembered && !studentNumber) setStudentNumber(remembered);
   }, []);
 
   useEffect(() => {
@@ -58,13 +64,15 @@ export default function JoinPage() {
 
     try {
       const meta = await getPollByCode(joinCode.trim());
+
       await studentJoin({
         joinCode: joinCode.trim(),
         studentNumber: studentNumber.trim(),
         securityCode: securityCode.trim() || undefined,
       });
 
-      // ✅ lock role as student once they join
+      // remember student number locally so Student page can show history
+      saveStudentNumber(studentNumber.trim());
       setRole("student");
 
       if (meta.status === "open") {
@@ -115,35 +123,43 @@ export default function JoinPage() {
   }, [poll, result, studentNumber, remaining]);
 
   async function submitNow(_reason: "manual" | "timeup" | "ended") {
-    if (!poll || autoSubmittedRef.current || result) return;
-    autoSubmittedRef.current = true;
-    setError(null);
-    try {
-      const res = await submitAnswers({
-        pollId: poll.id,
-        answers,
-        studentNumber: studentNumber.trim(),
-        securityCode: securityCode.trim() || undefined,
-      });
-      setResult(res);
-      setDeadline(null);
-    } catch (err: any) {
-      setError(err.message || "Submission failed");
-      autoSubmittedRef.current = false;
-    }
+  if (!poll || autoSubmittedRef.current || result) return;
+  autoSubmittedRef.current = true;
+  setError(null);
+
+  try {
+    // ✅ ensure we send one entry per question, defaulting to -1 if unanswered
+    const filledAnswers = poll.questions.map((_, i) =>
+      Number.isInteger(answers[i]) ? (answers[i] as number) : -1
+    );
+
+    const res = await submitAnswers({
+      pollId: poll.id,
+      answers: filledAnswers,
+      studentNumber: studentNumber.trim(),
+      securityCode: securityCode.trim() || undefined,
+    });
+
+    setResult(res);
+    setDeadline(null);
+  } catch (err: any) {
+    setError(err.message || "Submission failed");
+    autoSubmittedRef.current = false;
   }
+}
 
   async function handleSubmit() {
     await submitNow("manual");
   }
 
-  useEffect(() => {
-    if (!poll || result) return;
-    if (deadline === null) return;
-    if (remaining === 0 && Date.now() >= deadline && !autoSubmittedRef.current) {
-      submitNow("timeup");
-    }
-  }, [remaining, poll, result, deadline]);
+useEffect(() => {
+  if (!poll || result) return;
+  if (deadline == null) return;
+
+  if (!autoSubmittedRef.current && Date.now() >= deadline) {
+    submitNow("timeup");
+  }
+}, [tick, poll, result, deadline]);
 
   useEffect(() => {
     if (!poll || result) return;
@@ -171,7 +187,7 @@ export default function JoinPage() {
 
   // -------- UI --------
 
-  // 1) Join screen (white card)
+  // 1) Join screen
   if (!poll && !result) {
     return (
       <div className="max-w-md mx-auto p-6">
@@ -236,7 +252,9 @@ export default function JoinPage() {
                   return (
                     <li
                       key={oi}
-                      className={`px-2 py-1 rounded ${isCorrect ? "bg-green-100" : isChosen ? "bg-red-100" : ""}`}
+                      className={`px-2 py-1 rounded ${
+                        isCorrect ? "bg-green-100" : isChosen ? "bg-red-100" : ""
+                      }`}
                     >
                       {opt.label}. {opt.text}{" "}
                       {isCorrect ? "(correct)" : isChosen ? "(your choice)" : ""}
@@ -256,7 +274,7 @@ export default function JoinPage() {
             onClick={() => {
               setRole("student");
               navigate("/student");
-            }} // ✅ force the student role before navigating
+            }}
           >
             Back to my results
           </button>
@@ -289,7 +307,9 @@ export default function JoinPage() {
                 <button
                   key={oi}
                   type="button"
-                  className={`btn-secondary justify-start ${answers[qi] === oi ? "ring-2 ring-offset-2" : ""}`}
+                  className={`btn-secondary justify-start ${
+                    answers[qi] === oi ? "ring-2 ring-offset-2" : ""
+                  }`}
                   onClick={() => selectAnswer(qi, oi)}
                   aria-pressed={answers[qi] === oi}
                 >

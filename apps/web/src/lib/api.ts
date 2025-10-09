@@ -62,6 +62,7 @@ function toServerQuestions(qs: QuizQuestion[]) {
   return qs.map((q) => ({
     text: q.text,
     correctIndex: q.correctIndex,
+    // IMPORTANT: backend expects { text, index } on create
     options: q.options.map((o, idx) => ({ text: o.text, index: idx })),
   }));
 }
@@ -73,29 +74,91 @@ function remember(p: StudentPoll) {
   lastQuestionIds = p.questions.map((q, i) => q.id ?? i + 1);
 }
 
-// ---------- AUTH ----------
-export async function studentSignIn(identifier: string, password: string) {
-  // Treat identifier as email for backend login (keeps your UI unchanged).
-  const r = await http.post<ApiOk<{ user: any; token: string }>>(
-    "/auth/student/login",
-    { email: identifier.trim(), password },
-    false,
-  );
-  setToken(r.data.token);
-  setRole("student");
-  return r.data;
+// Small helper: treat “pasted token” flows as sign-in
+function looksLikeJwt(s: string) {
+  return typeof s === "string" && s.split(".").length === 3;
 }
 
+// ---------- AUTH (frontend-only) ----------
+/**
+ * Frontend-only sign-in:
+ * - If `password` looks like a JWT (three dot-separated parts), we store it and set the role.
+ * - Otherwise we throw, because the backend has no /auth/* routes.
+ * (This keeps your UI flow intact without changing the backend.)
+ */
+// ---------- AUTH (real backend) ----------
+/**
+ * Student sign-in:
+ * Your backend uses validateSignin; for students, we’ll prefer studentNumber.
+ * If the user typed an email instead of a number, we’ll send email.
+ */
+export async function studentSignIn(identifier: string, password: string) {
+  const trimmed = identifier.trim();
+  const email = trimmed.includes("@") ? trimmed : `student${trimmed}@example.com`;
+
+  const r = await http.post<ApiOk<{ user: any; token: string }>>(
+    "/auth/student/login",
+    { email, password },
+    false
+  );
+
+  const { token, user } = (r as any).data || {};
+  if (!token) throw new Error("No token returned by /auth/student/login");
+
+  setToken(token);
+  setRole("student");
+  return { user, token };
+}
+
+/** Lecturer sign-in */
 export async function lecturerSignIn(email: string, password: string) {
   const r = await http.post<ApiOk<{ user: any; token: string }>>(
     "/auth/lecturer/login",
-    { email, password },
-    false,
+    { email: email.trim(), password },
+    false
   );
-  setToken(r.data.token);
+
+  const { token, user } = (r as any).data || {};
+  if (!token) throw new Error("No token returned by /auth/lecturer/login");
+
+  setToken(token);
   setRole("lecturer");
-  return r.data;
+  return { user, token };
 }
+// ---------- SIGN UP (no auto-login; redirect back to /login from pages) ----------
+export async function studentSignUp(p: {
+  name: string;
+  studentNumber: string;
+  email: string;
+  password: string;
+}) {
+  // hits POST /api/auth/student/signup
+  const r = await http.post<ApiOk<{ user: any; token: string }>>(
+    "/auth/student/signup",
+    p,
+    false
+  );
+  // We intentionally do NOT call setToken / setRole here.
+  // The page will redirect to /login so the user signs in explicitly.
+  return r.data; // { user, token }
+}
+
+export async function lecturerSignUp(p: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  // hits POST /api/auth/lecturer/signup
+  const r = await http.post<ApiOk<{ user: any; token: string }>>(
+    "/auth/lecturer/signup",
+    p,
+    false
+  );
+  // Also no auto-login—page will send user back to /login.
+  return r.data; // { user, token }
+}
+
+
 
 // ---------- POLLS (lecturer) ----------
 export const listPolls = async (): Promise<Poll[]> => {
@@ -146,9 +209,14 @@ export const getPollById = async (id: string | number) =>
 // ---------- LOBBY ----------
 export const listLobby = async (id: string | number): Promise<string[]> => {
   const r = await http.get<
-    ApiOk<{ id: number; name: string; studentNumber: string; joinedAt: string }[]>
+    ApiOk<
+      { id: number; name?: string | null; studentNumber?: string; student_number?: string; studentnumber?: string; joinedAt?: string }[]
+    >
   >(`/polls/${id}/lobby`);
-  return r.data.map((s) => s.studentNumber);
+
+  return r.data
+    .map((s: any) => s.studentNumber ?? s.student_number ?? s.studentnumber ?? s.studentNo ?? s.student_no ?? "")
+    .filter((v: any) => typeof v === "string" && v.trim().length > 0);
 };
 
 export const kickFromLobby = async (id: string | number, studentNumber: string) =>
@@ -156,6 +224,7 @@ export const kickFromLobby = async (id: string | number, studentNumber: string) 
 
 // ---------- STUDENT participation ----------
 export const getPollByCode = async (joinCode: string): Promise<StudentPoll> => {
+  // public route (no auth required)
   const r = await http.get<ApiOk<ServerPoll>>(`/polls/code/${joinCode}`, false);
   const sp = toStudentPoll(r.data);
   remember(sp);
@@ -167,6 +236,7 @@ export const studentJoin = async (p: {
   studentNumber: string;
   securityCode?: string;
 }): Promise<StudentPoll> => {
+  // public route (no auth required)
   const r = await http.post<ApiOk<ServerPoll>>("/polls/join", p, false);
   const sp = toStudentPoll(r.data);
   remember(sp);
@@ -186,20 +256,28 @@ export const recordLiveChoice = async (
   );
 };
 
+// ---------- STUDENT participation ----------
 export const submitAnswers = async (p: {
   pollId: string | number;
-  answers: number[];
+  answers: number[];            // -1 means unanswered
   studentNumber: string;
   securityCode?: string;
 }): Promise<SubmitResultUI> => {
+  // Build only answered items; backend will treat missing as unanswered
   const body = {
-    answers: p.answers.map((optIndex, i) => ({
-      questionId: lastQuestionIds[i] ?? i + 1,
-      optionIndex: optIndex,
-    })),
+    studentNumber: p.studentNumber,
+    securityCode: p.securityCode ?? null,
+    answers: p.answers
+      .map((optIndex, i) => ({
+        questionId: lastQuestionIds[i] ?? i + 1,
+        optionIndex: optIndex,
+      }))
+      .filter(a => a.optionIndex >= 0),   // << important
   };
+
   await http.post<ApiOk<any>>(`/polls/${p.pollId}/submit`, body);
 
+  // local feedback (unchanged)
   const poll = lastStudentPoll;
   const total = poll?.questions.length ?? p.answers.length;
   const feedback =
@@ -214,6 +292,7 @@ export const submitAnswers = async (p: {
   const score = feedback.filter((f) => f.correct).length;
   return { score, total, feedback };
 };
+
 
 // ---------- ANALYTICS ----------
 export const getPollStats = async (id: string | number) => {
@@ -230,7 +309,6 @@ export const getPollStats = async (id: string | number) => {
     const incorrect = Math.max(0, q.totalAnswers - q.correctAnswers);
     const notAnswered = Math.max(0, attendees.length - q.totalAnswers);
     return { qIndex: idx, text: q.questionText, correct, incorrect, notAnswered };
-    // shape matches your StatsPage needs
   });
 
   return { attendees, perQuestion };

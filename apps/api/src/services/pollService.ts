@@ -26,7 +26,7 @@ export class PollService {
         securityCode: data.securityCode,
         created_by: data.createdBy,
         questions: {
-          create: data.questions.map((q, _index) => ({
+          create: data.questions.map((q) => ({
             question_text: q.text,
             question_type: "multiple_choice",
             correctIndex: q.correctIndex,
@@ -40,11 +40,7 @@ export class PollService {
         },
       },
       include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
+        questions: { include: { options: true } },
       },
     });
 
@@ -55,16 +51,8 @@ export class PollService {
     const polls = await prisma.poll.findMany({
       where: { created_by: userId },
       include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
-        _count: {
-          select: {
-            submissions: true,
-          },
-        },
+        questions: { include: { options: true } },
+        _count: { select: { submissions: true } },
       },
       orderBy: { created_at: "desc" },
     });
@@ -75,100 +63,94 @@ export class PollService {
     }));
   }
 
-  async getPollById(id: number, includeCorrectAnswers: boolean = false) {
+  async getPollById(id: number, includeCorrectAnswers = false) {
     const poll = await prisma.poll.findUnique({
       where: { id },
-      include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
-      },
+      include: { questions: { include: { options: true } } },
     });
-
-    if (!poll) {
-      throw new Error("Poll not found");
-    }
+    if (!poll) throw new Error("Poll not found");
 
     const formatted = this.formatPollResponse(poll);
-
-    // Remove correct answers for students
     if (!includeCorrectAnswers) {
       formatted.questions = formatted.questions.map((q) => ({
         ...q,
         correctIndex: undefined,
       }));
     }
-
     return formatted;
   }
 
   async getPollByJoinCode(joinCode: string) {
     const poll = await prisma.poll.findUnique({
       where: { joinCode },
-      include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
-      },
+      include: { questions: { include: { options: true } } },
     });
-
-    if (!poll) {
-      throw new Error("Poll not found");
-    }
-
+    if (!poll) throw new Error("Poll not found");
     return this.formatPollResponse(poll);
   }
 
   async updatePollStatus(pollId: number, status: string, userId: number) {
     // Verify ownership
     const poll = await prisma.poll.findFirst({
-      where: {
-        id: pollId,
-        created_by: userId,
-      },
+      where: { id: pollId, created_by: userId },
     });
+    if (!poll) throw new Error("Poll not found or access denied");
 
-    if (!poll) {
-      throw new Error("Poll not found or access denied");
-    }
-
-    const updatedPoll = await prisma.poll.update({
+    const updated = await prisma.poll.update({
       where: { id: pollId },
       data: { status },
-      include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
-      },
+      include: { questions: { include: { options: true } } },
     });
-
-    return this.formatPollResponse(updatedPoll);
+    return this.formatPollResponse(updated);
   }
 
   async deletePoll(pollId: number, userId: number) {
     // Verify ownership
     const poll = await prisma.poll.findFirst({
-      where: {
-        id: pollId,
-        created_by: userId,
-      },
+      where: { id: pollId, created_by: userId },
+      select: { id: true },
     });
+    if (!poll) throw new Error("Poll not found or access denied");
 
-    if (!poll) {
-      throw new Error("Poll not found or access denied");
-    }
+    await prisma.$transaction(async (tx) => {
+      // 1) Question ids for this poll
+      const qids = (
+        await tx.question.findMany({
+          where: { poll_id: pollId },
+          select: { id: true },
+        })
+      ).map((q) => q.id);
 
-    await prisma.poll.delete({
-      where: { id: pollId },
+      // 2) Delete per-question children first (FK-safe order)
+      if (qids.length > 0) {
+        await tx.answer.deleteMany({ where: { question_id: { in: qids } } });
+        await tx.vote.deleteMany({ where: { question_id: { in: qids } } });
+        await tx.option.deleteMany({ where: { question_id: { in: qids } } });
+        await tx.question.deleteMany({ where: { id: { in: qids } } });
+      }
+
+      // 3) Delete submissions (+ any answers tied by submission_id)
+      const sids = (
+        await tx.submission.findMany({
+          where: { poll_id: pollId },
+          select: { id: true },
+        })
+      ).map((s) => s.id);
+
+      if (sids.length > 0) {
+        await tx.answer.deleteMany({ where: { submission_id: { in: sids } } });
+        await tx.submission.deleteMany({ where: { id: { in: sids } } });
+      }
+
+      // 4) Delete analytics
+      await tx.analytics.deleteMany({ where: { poll_id: pollId } });
+
+      // 5) Delete the poll
+      await tx.poll.delete({ where: { id: pollId } });
     });
   }
 
+  // ---------- helpers ----------
   private formatPollResponse(poll: any) {
     return {
       id: poll.id.toString(),
@@ -180,6 +162,7 @@ export class PollService {
       securityCode: poll.securityCode,
       createdAt: poll.created_at,
       questions: poll.questions.map((q: any) => ({
+        id: q.id, // keep DB id for mapping answers
         text: q.question_text,
         correctIndex: q.correctIndex,
         options: q.options

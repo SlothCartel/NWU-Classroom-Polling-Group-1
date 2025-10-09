@@ -1,24 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { setRole } from "@/lib/auth";
-
-type AccountStore = Record<string, { email: string; password: string; createdAt: number }>;
-const LS_KEY = "lecturer_accounts_v1";
-
-function loadAccounts(): AccountStore {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? (JSON.parse(raw) as AccountStore) : {};
-  } catch {
-    return {};
-  }
-}
-function saveAccounts(db: AccountStore) {
-  localStorage.setItem(LS_KEY, JSON.stringify(db));
-}
+import { lecturerSignUp } from "@/lib/api";
 
 export default function LecturerSignupPage() {
   const navigate = useNavigate();
+
+  const [name, setName] = useState("");         // NEW
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -26,6 +13,7 @@ export default function LecturerSignupPage() {
   const [loading, setLoading] = useState(false);
 
   function validate(): string | null {
+    if (name.trim().length < 2) return "Please enter your full name.";
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
     if (!ok) return "Please enter a valid email.";
     if (password.length < 6) return "Password must be at least 6 characters.";
@@ -44,18 +32,22 @@ export default function LecturerSignupPage() {
 
     setLoading(true);
     try {
-      const db = loadAccounts();
-      const key = email.trim().toLowerCase();
-      if (db[key]) {
-        setError("An account with this email already exists.");
-        return;
-      }
-      db[key] = { email: key, password, createdAt: Date.now() };
-      saveAccounts(db);
+      // Hit the real backend (no auto-login; we just redirect back to /login)
+      await lecturerSignUp({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-      // mock auth -> into dashboard
-      setRole("lecturer");
-      navigate("/dashboard", { replace: true });
+      // Success → back to role selection so they can sign in explicitly
+      navigate("/login", { replace: true });
+    } catch (e: any) {
+      // Show a clean error message from backend if available
+      const msg =
+        e?.response?.data?.error ||
+        e?.message ||
+        "Signup failed. Please try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -67,10 +59,23 @@ export default function LecturerSignupPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-5">Lecturer sign up</h1>
 
         {error && (
-          <div className="mb-3 rounded-lg bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
+          <div className="mb-3 rounded-lg bg-red-50 text-red-700 px-3 py-2 text-sm">
+            {error}
+          </div>
         )}
 
         <form onSubmit={handleSignup} className="space-y-3">
+          <div>
+            <label className="label">Full name</label>
+            <input
+              className="input w-full"
+              placeholder="e.g. Prof. Thandi Mokoena"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+            />
+          </div>
+
           <div>
             <label className="label">Email</label>
             <input
