@@ -56,28 +56,23 @@ export default function DashboardPage() {
     void refresh();
   }, []);
 
-  // ---- lobby: poll attendees every ~1.5s while modal is open
-  useEffect(() => {
-    if (!lobbyFor) return;
-    const pollId = lobbyFor.id;
-    let stopped = false;
-    let timer: number | undefined;
+  // assumes you have: lobbyFor (poll), lobbyList, setLobbyList, listLobby(pollId)
+useEffect(() => {
+  if (!lobbyFor) return;
+  let cancelled = false;
 
-    async function tick() {
-      try {
-        const list = await listLobby(pollId);
-        if (!stopped) setLobbyList(list);
-      } finally {
-        if (!stopped) timer = window.setTimeout(tick, 1500);
-      }
+  const loop = async () => {
+    try {
+      const list = await listLobby(lobbyFor.id);
+      if (!cancelled) setLobbyList(list);
+    } finally {
+      if (!cancelled) setTimeout(loop, 2000);
     }
-    tick();
+  };
 
-    return () => {
-      stopped = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [lobbyFor]);
+  loop();
+  return () => { cancelled = true; };
+}, [lobbyFor?.id]);
 
   // ------ create form handlers ------
   function updateQuestionText(i: number, text: string) {
