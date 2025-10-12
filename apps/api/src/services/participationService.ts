@@ -1,4 +1,3 @@
-// apps/api/src/services/participationService.ts
 import { prisma } from "../config/database";
 import { POLL_STATUS } from "../utils/constants";
 
@@ -18,23 +17,34 @@ export interface SubmitAnswersData {
 }
 
 export class ParticipationService {
+  // -------- JOIN (create/refresh LobbyEntry) --------
   async joinPoll(data: JoinPollData) {
     const poll = await prisma.poll.findUnique({
       where: { joinCode: data.joinCode },
       include: { questions: { include: { options: true } } },
     });
     if (!poll) throw new Error("Poll not found");
+
     if (poll.status !== POLL_STATUS.OPEN && poll.status !== POLL_STATUS.LIVE) {
       throw new Error("Poll is not open for joining");
     }
+
     if (poll.securityCode && poll.securityCode !== data.securityCode) {
       throw new Error("Invalid security code");
     }
+
     const user = await prisma.user.findUnique({
       where: { studentNumber: data.studentNumber },
       select: { id: true },
     });
     if (!user) throw new Error("Student not found");
+
+    // ✅ Ensure student appears in the lobby immediately (idempotent)
+    await prisma.lobbyEntry.upsert({
+      where: { poll_id_user_id: { poll_id: poll.id, user_id: user.id } },
+      create: { poll_id: poll.id, user_id: user.id },
+      update: {}, // keep original joined_at
+    });
 
     return {
       id: poll.id.toString(),
@@ -52,12 +62,57 @@ export class ParticipationService {
     };
   }
 
+  // -------- LIVE CHOICE (upsert Vote per (question,user)) --------
+  async recordLiveChoice(params: {
+    pollId: number;
+    userId: number;
+    questionId: number;
+    optionIndex: number; // -1 means cleared/not answered
+  }) {
+    const { pollId, userId, questionId, optionIndex } = params;
+
+    // Verify question belongs to poll
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: { options: true, poll: { select: { id: true, status: true } } },
+    });
+    if (!question || question.poll.id !== pollId) {
+      throw new Error("Invalid question for this poll");
+    }
+    if (question.poll.status !== POLL_STATUS.LIVE) {
+      // silently ignore if poll isn’t live (or throw; your call)
+      return { success: true };
+    }
+
+    // If -1 treat as “no vote” → delete any existing vote
+    if (optionIndex < 0) {
+      await prisma.vote.deleteMany({
+        where: { question_id: questionId, user_id: userId },
+      });
+      return { success: true };
+    }
+
+    // Map optionIndex -> option_id
+    const opt = question.options.find((o) => o.optionIndex === optionIndex);
+    if (!opt) throw new Error("Invalid option index");
+
+    // Upsert a single vote per question/user
+    await prisma.vote.upsert({
+      where: { question_id_user_id: { question_id: questionId, user_id: userId } },
+      create: { question_id: questionId, user_id: userId, option_id: opt.id },
+      update: { option_id: opt.id },
+    });
+
+    return { success: true };
+  }
+
+  // -------- FINAL SUBMIT (persist submission+answers) --------
   async submitAnswers(data: SubmitAnswersData) {
     const poll = await prisma.poll.findUnique({
       where: { id: data.pollId },
       include: {
         questions: {
-          orderBy: { id: "asc" }, // position-based grading
+          orderBy: { id: "asc" },
           include: { options: true },
         },
       },
@@ -70,31 +125,17 @@ export class ParticipationService {
 
     const total = poll.questions.length;
 
-    const qById = new Map<
-      number,
-      { id: number; correctIndex: number | null; options: { id: number; optionIndex: number }[] }
-    >();
-    for (const q of poll.questions) {
-      qById.set(q.id, {
-        id: q.id,
-        correctIndex: q.correctIndex ?? null,
-        options: q.options.map((o) => ({ id: o.id, optionIndex: o.optionIndex })),
-      });
-    }
-
     let score = 0;
     const answerRows: { question_id: number; option_id: number | null; is_correct: boolean | null }[] = [];
 
     for (let i = 0; i < total; i++) {
-      const q = poll.questions[i];              // authoritative question at position i
-      const submitted = data.answers[i];        // answer at same position (may be undefined)
+      const q = poll.questions[i];
+      const submitted = data.answers[i];
 
-      // ✅ Coerce optionIndex safely (string → number), default to -1 for NaN
-      const optionIdx = submitted != null
-        ? Number.isFinite(Number(submitted.optionIndex))
+      const optionIdx =
+        submitted != null && Number.isFinite(Number(submitted.optionIndex))
           ? parseInt(String(submitted.optionIndex), 10)
-          : -1
-        : -1;
+          : -1;
 
       if (optionIdx < 0) {
         answerRows.push({ question_id: q.id, option_id: null, is_correct: null });
@@ -102,8 +143,7 @@ export class ParticipationService {
       }
 
       const opt = q.options.find((o) => o.optionIndex === optionIdx) || null;
-      const isCorrect =
-        q.correctIndex == null || opt == null ? null : q.correctIndex === optionIdx;
+      const isCorrect = q.correctIndex == null || opt == null ? null : q.correctIndex === optionIdx;
       if (isCorrect === true) score += 1;
 
       answerRows.push({
@@ -139,18 +179,19 @@ export class ParticipationService {
     return { score: submission.score, total: submission.total };
   }
 
+  // -------- LOBBY (read LobbyEntry; DO NOT clear on submit) --------
   async getLobbyStudents(pollId: number) {
-    const poll = await prisma.poll.findUnique({
-      where: { id: pollId },
-      include: { submissions: { include: { user: true } } },
+    const entries = await prisma.lobbyEntry.findMany({
+      where: { poll_id: pollId },
+      orderBy: { joined_at: "asc" },
+      include: { user: { select: { id: true, name: true, studentNumber: true } } },
     });
-    if (!poll) throw new Error("Poll not found");
 
-    return poll.submissions.map((sub) => ({
-      id: sub.user.id,
-      name: sub.user.name,
-      studentNumber: sub.user.studentNumber,
-      joinedAt: sub.submitted_at,
+    return entries.map((e) => ({
+      id: e.user.id,
+      name: e.user.name,
+      studentNumber: e.user.studentNumber ?? "",
+      joinedAt: e.joined_at,
     }));
   }
 
@@ -161,18 +202,12 @@ export class ParticipationService {
     });
     if (!user) throw new Error("Student not found");
 
-    await prisma.$transaction(async (tx) => {
-      const sub = await tx.submission.findUnique({
-        where: { poll_id_user_id: { poll_id: pollId, user_id: user.id } },
-        select: { id: true },
-      });
-      if (sub) {
-        await tx.answer.deleteMany({ where: { submission_id: sub.id } });
-        await tx.submission.delete({ where: { id: sub.id } });
-      }
+    await prisma.lobbyEntry.deleteMany({
+      where: { poll_id: pollId, user_id: user.id },
     });
 
-    return { success: true, message: "Student removed from poll" };
+    // NOTE: We do NOT touch votes or submissions here.
+    return { success: true, message: "Student removed from lobby" };
   }
 }
 

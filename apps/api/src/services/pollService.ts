@@ -104,51 +104,54 @@ export class PollService {
     return this.formatPollResponse(updated);
   }
 
-  async deletePoll(pollId: number, userId: number) {
-    // Verify ownership
-    const poll = await prisma.poll.findFirst({
-      where: { id: pollId, created_by: userId },
-      select: { id: true },
-    });
-    if (!poll) throw new Error("Poll not found or access denied");
+async deletePoll(pollId: number, userId: number) {
+  // Verify ownership
+  const poll = await prisma.poll.findFirst({
+    where: { id: pollId, created_by: userId },
+    select: { id: true },
+  });
+  if (!poll) throw new Error("Poll not found or access denied");
 
-    await prisma.$transaction(async (tx) => {
-      // 1) Question ids for this poll
-      const qids = (
-        await tx.question.findMany({
-          where: { poll_id: pollId },
-          select: { id: true },
-        })
-      ).map((q) => q.id);
+  await prisma.$transaction(async (tx) => {
+    // 1) Questions for this poll
+    const qids = (
+      await tx.question.findMany({
+        where: { poll_id: pollId },
+        select: { id: true },
+      })
+    ).map((q) => q.id);
 
-      // 2) Delete per-question children first (FK-safe order)
-      if (qids.length > 0) {
-        await tx.answer.deleteMany({ where: { question_id: { in: qids } } });
-        await tx.vote.deleteMany({ where: { question_id: { in: qids } } });
-        await tx.option.deleteMany({ where: { question_id: { in: qids } } });
-        await tx.question.deleteMany({ where: { id: { in: qids } } });
-      }
+    // 2) Delete per-question children
+    if (qids.length > 0) {
+      await tx.vote.deleteMany({ where: { question_id: { in: qids } } });
+      await tx.answer.deleteMany({ where: { question_id: { in: qids } } });
+      await tx.option.deleteMany({ where: { question_id: { in: qids } } });
+      await tx.question.deleteMany({ where: { id: { in: qids } } });
+    }
 
-      // 3) Delete submissions (+ any answers tied by submission_id)
-      const sids = (
-        await tx.submission.findMany({
-          where: { poll_id: pollId },
-          select: { id: true },
-        })
-      ).map((s) => s.id);
+    // 3) Delete submissions (+ answers by submission_id)
+    const sids = (
+      await tx.submission.findMany({
+        where: { poll_id: pollId },
+        select: { id: true },
+      })
+    ).map((s) => s.id);
 
-      if (sids.length > 0) {
-        await tx.answer.deleteMany({ where: { submission_id: { in: sids } } });
-        await tx.submission.deleteMany({ where: { id: { in: sids } } });
-      }
+    if (sids.length > 0) {
+      await tx.answer.deleteMany({ where: { submission_id: { in: sids } } });
+      await tx.submission.deleteMany({ where: { id: { in: sids } } });
+    }
 
-      // 4) Delete analytics
-      await tx.analytics.deleteMany({ where: { poll_id: pollId } });
+    // 4) ✅ Delete lobby entries (this is the FK causing your error)
+    await tx.lobbyEntry.deleteMany({ where: { poll_id: pollId } });
 
-      // 5) Delete the poll
-      await tx.poll.delete({ where: { id: pollId } });
-    });
-  }
+    // 5) Delete analytics
+    await tx.analytics.deleteMany({ where: { poll_id: pollId } });
+
+    // 6) Finally delete the poll
+    await tx.poll.delete({ where: { id: pollId } });
+  });
+}
 
   // ---------- helpers ----------
   private formatPollResponse(poll: any) {
