@@ -8,114 +8,144 @@ datasource db {
 }
 
 model User {
-  id             Int           @id @default(autoincrement())
-  name           String
-  email          String        @unique
-  studentNumber  String?       @unique
-  password       String
-  role           String
-  created_at     DateTime      @default(now())
+  id            Int           @id @default(autoincrement())
+  name          String
+  email         String        @unique
+  studentNumber String?       @unique
+  password      String
+  role          String
+  created_at    DateTime      @default(now())
 
-  Polls          Poll[]        @relation("CreatedPolls")
-  Votes          Vote[]
-  Submissions    Submission[]
+  Polls         Poll[]        @relation("CreatedPolls")
+  Votes         Vote[]
+  Submissions   Submission[]
+  LobbyEntries  LobbyEntry[]
 }
 
 model Poll {
-  id            Int           @id @default(autoincrement())
-  title         String
-  description   String?
-  joinCode      String        @unique
-  status        String        @default("draft")
-  timerSeconds  Int           @default(30)
-  securityCode  String?
-  created_by    Int
-  created_at    DateTime      @default(now())
-  expires_at    DateTime?
+  id           Int           @id @default(autoincrement())
+  title        String
+  description  String?
+  joinCode     String        @unique
+  status       String        @default("draft")
+  timerSeconds Int           @default(30)
+  securityCode String?
+  created_by   Int
+  created_at   DateTime      @default(now())
+  expires_at   DateTime?
 
-  questions     Question[]
-  analytics     Analytics[]
-  submissions   Submission[]
+  questions    Question[]
+  analytics    Analytics[]
+  submissions  Submission[]
+  lobby        LobbyEntry[]
 
-  creator       User          @relation(fields: [created_by], references: [id], name: "CreatedPolls")
+  creator      User          @relation(fields: [created_by], references: [id], name: "CreatedPolls")
 }
 
 model Question {
-  id             Int        @id @default(autoincrement())
-  poll_id        Int
-  question_text  String
-  question_type  String
-  correctIndex   Int?
-
-  options        Option[]
-  votes          Vote[]
-  answers        Answer[]
-
-  poll           Poll       @relation(fields: [poll_id], references: [id])
-}
-
-model Option {
-  id           Int        @id @default(autoincrement())
-  question_id  Int
-  option_text  String
-  optionIndex  Int        // A=0, B=1, C=2, D=3
-
-  votes        Vote[]
-  answers      Answer[]
-
-  question     Question   @relation(fields: [question_id], references: [id])
-}
-
-model Vote {
-  id           Int        @id @default(autoincrement())
-  question_id  Int
-  option_id    Int?
-  user_id      Int
-  vote_text    String?
-  created_at   DateTime   @default(now())
-
-  question     Question   @relation(fields: [question_id], references: [id])
-  option       Option?    @relation(fields: [option_id], references: [id])
-  user         User       @relation(fields: [user_id], references: [id])
-}
-
-model Submission {
   id            Int        @id @default(autoincrement())
   poll_id       Int
-  user_id       Int
-  score         Int
-  total         Int
-  submitted_at  DateTime   @default(now())
+  question_text String
+  question_type String
+  correctIndex  Int?
 
+  options       Option[]
+  votes         Vote[]
   answers       Answer[]
 
   poll          Poll       @relation(fields: [poll_id], references: [id])
-  user          User       @relation(fields: [user_id], references: [id])
+}
 
-  @@unique([poll_id, user_id]) // One submission per user per poll
+model Option {
+  id          Int      @id @default(autoincrement())
+  question_id Int
+  option_text String
+  optionIndex Int
+
+  votes       Vote[]
+  answers     Answer[]
+
+  question    Question @relation(fields: [question_id], references: [id])
+}
+
+model Vote {
+  id          Int      @id @default(autoincrement())
+  question_id Int
+  option_id   Int?
+  user_id     Int
+  vote_text   String?
+  created_at  DateTime @default(now())
+
+  question    Question @relation(fields: [question_id], references: [id])
+  option      Option?  @relation(fields: [option_id], references: [id])
+  user        User     @relation(fields: [user_id], references: [id])
+
+  /// one “live” vote per user per question
+  @@unique([question_id, user_id])
+
+  /// helpful indexes for fast live stats
+  @@index([question_id])
+  @@index([option_id])
+  @@index([user_id])
+}
+
+model Submission {
+  id           Int       @id @default(autoincrement())
+  poll_id      Int
+  user_id      Int
+  score        Int
+  total        Int
+  submitted_at DateTime  @default(now())
+
+  answers      Answer[]
+
+  poll         Poll      @relation(fields: [poll_id], references: [id])
+  user         User      @relation(fields: [user_id], references: [id])
+
+  @@unique([poll_id, user_id])
+  @@index([poll_id])
+  @@index([user_id])
 }
 
 model Answer {
-  id             Int         @id @default(autoincrement())
-  submission_id  Int
-  question_id    Int
-  option_id      Int?
-  answer_text    String?
-  is_correct     Boolean?
+  id            Int        @id @default(autoincrement())
+  submission_id Int
+  question_id   Int
+  option_id     Int?
+  answer_text   String?
+  is_correct    Boolean?
 
-  // ✅ Cascade delete answers when a submission is deleted
-  submission     Submission  @relation(fields: [submission_id], references: [id], onDelete: Cascade)
-  question       Question    @relation(fields: [question_id], references: [id])
-  option         Option?     @relation(fields: [option_id], references: [id])
+  submission    Submission @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+  question      Question   @relation(fields: [question_id], references: [id])
+  option        Option?    @relation(fields: [option_id], references: [id])
+
+  @@index([submission_id])
+  @@index([question_id])
+  @@index([option_id])
 }
 
 model Analytics {
-  id               Int        @id @default(autoincrement())
-  poll_id          Int
-  total_responses  Int
-  created_at       DateTime   @default(now())
+  id              Int      @id @default(autoincrement())
+  poll_id         Int
+  total_responses Int
+  created_at      DateTime @default(now())
 
-  poll             Poll       @relation(fields: [poll_id], references: [id])
+  poll            Poll     @relation(fields: [poll_id], references: [id])
 
   @@index([poll_id, created_at])
+}
+
+/// Tracks who has joined the lobby (independent of submissions)
+model LobbyEntry {
+  id        Int      @id @default(autoincrement())
+  poll_id   Int
+  user_id   Int
+  joined_at DateTime @default(now())
+
+  // 👇 add onDelete: Cascade here
+  poll      Poll     @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [user_id], references: [id])
+
+  @@unique([poll_id, user_id])
+  @@index([poll_id])
 }

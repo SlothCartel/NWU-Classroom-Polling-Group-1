@@ -227,12 +227,30 @@ export const getPollById = async (id: string | number) =>
 export const listLobby = async (id: string | number): Promise<string[]> => {
   const r = await http.get<
     ApiOk<
-      { id: number; name?: string | null; studentNumber?: string; student_number?: string; studentnumber?: string; joinedAt?: string }[]
+      | string[] // e.g. ["37613480"]
+      | { id: number; name?: string | null; studentNumber?: string }[]
     >
   >(`/polls/${id}/lobby`);
 
-  return r.data
-    .map((s: any) => s.studentNumber ?? s.student_number ?? s.studentnumber ?? s.studentNo ?? s.student_no ?? "")
+  // Unwrap the payload (backend sends { success, data })
+  const payload: any = (r as any).data?.data ?? r.data;
+
+  // If it's already an array of strings → return as-is
+  if (Array.isArray(payload) && payload.every((v) => typeof v === "string")) {
+    return payload as string[];
+  }
+
+  // Otherwise map objects to studentNumber
+  return (payload as any[])
+    .map(
+      (s) =>
+        s?.studentNumber ??
+        s?.student_number ??
+        s?.studentnumber ??
+        s?.studentNo ??
+        s?.student_no ??
+        ""
+    )
     .filter((v: any) => typeof v === "string" && v.trim().length > 0);
 };
 

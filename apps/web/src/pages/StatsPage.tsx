@@ -35,6 +35,9 @@ export default function StatsPage() {
   const [perQuestion, setPerQuestion] = useState<QStat[]>([]);
   const [openAtt, setOpenAtt] = useState(false);
 
+  // export confirm modal
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+
   useEffect(() => {
     let cancel = false;
 
@@ -141,7 +144,7 @@ export default function StatsPage() {
                           <Legend />
                           <Bar dataKey="Correct" fill="#16a34a" />
                           <Bar dataKey="Incorrect" fill="#dc2626" />
-                          <Bar dataKey="Not answered" fill="#9ca3af" />
+                          
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -151,13 +154,51 @@ export default function StatsPage() {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end">
-            <button className="btn-primary" onClick={handleBack}>
-              Back
+          {/* Footer buttons */}
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              className="btn-primary"
+              onClick={() => setShowExportConfirm(true)}
+            >
+              Export to CSV
             </button>
           </div>
         </div>
       </div>
+
+      {/* Confirm Export modal */}
+      {showExportConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 w-[min(90vw,380px)] shadow-2xl">
+            <h3 className="text-lg font-semibold mb-2">Export to CSV</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              Are you sure you want to export this poll’s results to CSV?
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowExportConfirm(false)}
+              >
+                No
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  // TODO: here the code must come for the export YES button.
+                  // Example later:
+                  // await api.exportPollToCsv(statId)
+                  //   .then(downloadFile)
+                  //   .catch(showToast);
+                  setShowExportConfirm(false);
+                }}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
