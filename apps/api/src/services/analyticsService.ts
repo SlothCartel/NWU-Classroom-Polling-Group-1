@@ -3,9 +3,7 @@ import { prisma } from "../config/database";
 const LABELS = ["A", "B", "C", "D"] as const;
 
 export class AnalyticsService {
-  /**
-   * Student history – unchanged; still based on saved submissions.
-   */
+  // --- Student history (unchanged) ---
   async getStudentSubmissionHistory(studentNumber: string) {
     const user = await prisma.user.findUnique({
       where: { studentNumber },
@@ -88,9 +86,7 @@ export class AnalyticsService {
     });
   }
 
-  /**
-   * Delete a student submission; (optional) also clear their live votes.
-   */
+  // --- Delete submission (unchanged logic) ---
   async deleteStudentSubmission(studentNumber: string, pollId: number) {
     const user = await prisma.user.findUnique({
       where: { studentNumber },
@@ -107,21 +103,14 @@ export class AnalyticsService {
         await tx.answer.deleteMany({ where: { submission_id: sub.id } });
         await tx.submission.delete({ where: { id: sub.id } });
       }
-
-      // If you also want the student's live chart traces gone, uncomment:
-      // await tx.vote.deleteMany({
-      //   where: { user_id: user.id, question: { poll_id: pollId } },
-      // });
+      // If you also want to wipe live votes for this student, uncomment:
+      // await tx.vote.deleteMany({ where: { user_id: user.id, question: { poll_id: pollId } } });
     });
 
     return { success: true, message: "Deleted" };
   }
 
-  /**
-   * LIVE poll stats for lecturer dashboard.
-   * - attendees from LobbyEntry
-   * - per-question correctness from live Votes vs. correctIndex
-   */
+  // --- Live stats used by the stats page ---
   async getPollStats(pollId: number) {
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
@@ -136,7 +125,6 @@ export class AnalyticsService {
       .map((e) => e.user.studentNumber)
       .filter((s): s is string => !!s);
 
-    // Pull all live votes for these questions (with option’s optionIndex)
     const qIds = poll.questions.map((q) => q.id);
     const votes = await prisma.vote.findMany({
       where: { question_id: { in: qIds } },
@@ -146,13 +134,11 @@ export class AnalyticsService {
     const perQuestion = poll.questions.map((q) => {
       const v = votes.filter((x) => x.question_id === q.id);
       const totalAnswers = v.length;
-
       const correctAnswers =
         q.correctIndex == null
           ? 0
           : v.filter((x) => x.option?.optionIndex === q.correctIndex).length;
 
-      // "Not answered" = attendees who have not voted on this question
       const notAnswered = Math.max(0, attendees.length - totalAnswers);
       const incorrect = Math.max(0, totalAnswers - correctAnswers);
 
@@ -168,12 +154,48 @@ export class AnalyticsService {
     return { attendees, questions: perQuestion };
   }
 
-  async exportPollData(pollId: number, format: "json" | "csv" = "json") {
-    const data = await this.getPollStats(pollId);
-    if (format === "csv") {
-      return data; // placeholder
-    }
-    return data;
+  // --- NEW: real CSV exporter (UTF-8, with header row) ---
+  async exportPollCsv(pollId: number): Promise<string> {
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+      select: { title: true, joinCode: true },
+    });
+    if (!poll) throw new Error("Poll not found");
+
+    const { attendees, questions } = await this.getPollStats(pollId);
+
+    const esc = (val: unknown) => {
+      const s = String(val ?? "");
+      // Escape double quotes and wrap in quotes if needed
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    const rows: string[] = [];
+    rows.push(`Title,${esc(poll.title)},Join Code,${esc(poll.joinCode)}`);
+    rows.push(`Attendees,${attendees.length}`);
+    rows.push(""); // blank line
+
+    rows.push(
+      ["Question #", "Question text", "Correct", "Incorrect", "Not answered", "Total answers", "Total attendees"]
+        .map(esc)
+        .join(","),
+    );
+
+    questions.forEach((q, i) => {
+      rows.push(
+        [i + 1, q.questionText, q.correctAnswers, q.incorrect, q.notAnswered ?? 0, q.totalAnswers, attendees.length]
+          .map(esc)
+          .join(","),
+      );
+    });
+
+    rows.push(""); // blank line
+    rows.push("Attendee student numbers");
+    attendees.forEach((s) => rows.push(esc(s)));
+
+    // Prepend UTF-8 BOM so Excel opens it nicely
+    return "\uFEFF" + rows.join("\n");
   }
 }
 
