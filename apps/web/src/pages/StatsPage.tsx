@@ -1,5 +1,5 @@
 // src/pages/StatsPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPollStats, getPollById } from "@/lib/api";
 import type { Poll } from "@/lib/types";
@@ -13,7 +13,7 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
-import { setRole } from "@/lib/auth"; // ensure lecturer role before going back
+import { setRole } from "@/lib/auth";
 
 type QStat = {
   qIndex: number;
@@ -24,7 +24,7 @@ type QStat = {
 };
 
 export default function StatsPage() {
-  // ✅ Support either /stats/:id or /stats/:pollId
+  // support /stats/:id or /stats/:pollId
   const params = useParams<{ id?: string; pollId?: string }>();
   const statId = params.pollId ?? params.id ?? "";
 
@@ -35,8 +35,18 @@ export default function StatsPage() {
   const [perQuestion, setPerQuestion] = useState<QStat[]>([]);
   const [openAtt, setOpenAtt] = useState(false);
 
-  // export confirm modal
+  // export confirm + toast
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(
+    null,
+  );
+
+  // filename helper
+  const csvFilename = useMemo(() => {
+    const t = (poll?.title || "poll").replace(/[^a-z0-9_\- ]/gi, "").replace(/\s+/g, "_");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    return `${t}_${ts}.csv`;
+  }, [poll?.title]);
 
   useEffect(() => {
     let cancel = false;
@@ -47,7 +57,7 @@ export default function StatsPage() {
         const p = await getPollById(statId);
         if (!cancel) setPoll(p);
       } catch {
-        // ignore
+        /* ignore */
       }
     }
 
@@ -59,7 +69,7 @@ export default function StatsPage() {
         setAttendees(s.attendees);
         setPerQuestion(s.perQuestion as QStat[]);
       } finally {
-        if (!cancel) setTimeout(tick, 2000); // lightweight polling
+        if (!cancel) setTimeout(tick, 2000);
       }
     }
 
@@ -71,9 +81,69 @@ export default function StatsPage() {
   }, [statId]);
 
   const handleBack = () => {
-    setRole("lecturer"); // ✅ make sure the guard allows /dashboard
+    setRole("lecturer");
     navigate("/dashboard");
   };
+
+  // --- export helpers ---
+  function flash(kind: "ok" | "err", msg: string) {
+    setToast({ kind, msg });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  function getStoredToken(): string | null {
+    const keys = ["token", "authToken", "access_token", "accessToken", "jwt", "id_token"];
+    for (const k of keys) {
+      const v = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (v && v.trim()) return v;
+    }
+    return null;
+  }
+
+  async function doExportCsv() {
+    try {
+      const token = getStoredToken();
+      if (!token) {
+        flash("err", "You’re not signed in (no access token found).");
+        setShowExportConfirm(false);
+        return;
+      }
+
+      const res = await fetch(`/api/polls/${statId}/export?format=csv`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "text/csv,application/json",
+        },
+      });
+
+      if (!res.ok) {
+        let errText = `Export failed (${res.status})`;
+        try {
+          const j = await res.json();
+          if (j?.error) errText = j.error;
+        } catch {}
+        flash("err", errText);
+        setShowExportConfirm(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = csvFilename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      flash("ok", "Export started — check your Downloads.");
+    } catch (e: any) {
+      flash("err", e?.message || "Export failed");
+    } finally {
+      setShowExportConfirm(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-purple-700 text-purple-900">
@@ -115,7 +185,7 @@ export default function StatsPage() {
             )}
           </div>
 
-          {/* Charts – one per question */}
+          {/* Charts */}
           <div className="mt-8">
             <h2 className="text-lg font-semibold mb-3">Per-question correctness</h2>
 
@@ -144,7 +214,7 @@ export default function StatsPage() {
                           <Legend />
                           <Bar dataKey="Correct" fill="#16a34a" />
                           <Bar dataKey="Incorrect" fill="#dc2626" />
-                          
+                          <Bar dataKey="Not answered" fill="#9ca3af" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -154,12 +224,9 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* Footer buttons */}
+          {/* Footer actions */}
           <div className="mt-6 flex justify-end gap-3">
-            <button
-              className="btn-primary"
-              onClick={() => setShowExportConfirm(true)}
-            >
+            <button className="btn-primary" onClick={() => setShowExportConfirm(true)}>
               Export to CSV
             </button>
           </div>
@@ -176,27 +243,26 @@ export default function StatsPage() {
             </p>
 
             <div className="flex justify-end gap-2">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowExportConfirm(false)}
-              >
+              <button className="btn-secondary" onClick={() => setShowExportConfirm(false)}>
                 No
               </button>
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  // TODO: here the code must come for the export YES button.
-                  // Example later:
-                  // await api.exportPollToCsv(statId)
-                  //   .then(downloadFile)
-                  //   .catch(showToast);
-                  setShowExportConfirm(false);
-                }}
-              >
+              <button className="btn-primary" onClick={doExportCsv}>
                 Yes
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toasts */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg text-white ${
+            toast.kind === "ok" ? "bg-green-600" : "bg-red-600"
+          }`}
+          role="status"
+        >
+          {toast.msg}
         </div>
       )}
     </div>
