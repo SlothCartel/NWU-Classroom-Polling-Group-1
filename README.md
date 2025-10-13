@@ -269,3 +269,39 @@ By next Monday, the team should have:
 
 </details>
 
+---
+# 🗓️ Meeting 4 – Finilization (13 Oct 2025)  
+
+---
+
+<details>
+## ✅ UAT Completed – Finalization & Deployment Phase (13 Oct 2025)
+
+Our **User Acceptance Testing (UAT)** has been successfully completed.  
+The system met the **guest-mode polling flow** objectives, with functional poll creation, live voting, and chart updates.  
+
+We are now entering the **final phase** of development, focusing on:  
+- 🧾 **Exporting poll data (CSV/JSON)**  
+- ☁️ **Hosting the full application on Azure**  
+- 🧪 **Final testing & demo preparation**  
+
+🎯 **Goal:** Have the project fully finalized and ready for presentation by **Friday, 17 Oct 2025**.  
+🎥 **Presentation:** Will be **online**, but date/time and format are **still to be confirmed**.
+
+---
+
+</details>
+
+---
+
+<details>
+<summary>🎥 Presentation Preparation</summary>
+
+### Current Plan
+- Presentation will be **online** (platform TBC).  
+- Format, date, and time not yet finalized.
+
+🗓️ **Deadline:** Friday, 17 Oct 2025  
+🎯 Deliverable: Fully deployed, working Azure demo  
+
+</details>
