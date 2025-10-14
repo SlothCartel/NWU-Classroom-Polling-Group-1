@@ -54,10 +54,7 @@ export class AnalyticsService {
           questionId: a.question_id,
           question: a.question?.question_text ?? "",
           chosenIndex: typeof a.option?.optionIndex === "number" ? a.option!.optionIndex : -1,
-          correctIndex:
-            typeof a.question?.correctIndex === "number"
-              ? (a.question!.correctIndex as number)
-              : -1,
+          correctIndex: typeof a.question?.correctIndex === "number" ? a.question!.correctIndex : -1,
           correct: a.is_correct === true,
         };
       });
@@ -86,7 +83,7 @@ export class AnalyticsService {
     });
   }
 
-  // --- Delete submission (unchanged logic) ---
+  // --- Delete submission (unchanged) ---
   async deleteStudentSubmission(studentNumber: string, pollId: number) {
     const user = await prisma.user.findUnique({
       where: { studentNumber },
@@ -99,18 +96,17 @@ export class AnalyticsService {
         where: { poll_id_user_id: { poll_id: pollId, user_id: user.id } },
         select: { id: true },
       });
+
       if (sub) {
         await tx.answer.deleteMany({ where: { submission_id: sub.id } });
         await tx.submission.delete({ where: { id: sub.id } });
       }
-      // If you also want to wipe live votes for this student, uncomment:
-      // await tx.vote.deleteMany({ where: { user_id: user.id, question: { poll_id: pollId } } });
     });
 
     return { success: true, message: "Deleted" };
   }
 
-  // --- Live stats used by the stats page (unchanged) ---
+  // --- Live stats (unchanged) ---
   async getPollStats(pollId: number) {
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
@@ -121,11 +117,9 @@ export class AnalyticsService {
     });
     if (!poll) throw new Error("Poll not found");
 
-    const attendees = poll.lobby
-      .map((e) => e.user.studentNumber)
-      .filter((s): s is string => !!s);
-
+    const attendees = poll.lobby.map((e) => e.user.studentNumber).filter((s): s is string => !!s);
     const qIds = poll.questions.map((q) => q.id);
+
     const votes = await prisma.vote.findMany({
       where: { question_id: { in: qIds } },
       include: { option: { select: { optionIndex: true } } },
@@ -134,72 +128,44 @@ export class AnalyticsService {
     const perQuestion = poll.questions.map((q) => {
       const v = votes.filter((x) => x.question_id === q.id);
       const totalAnswers = v.length;
-      const correctAnswers =
-        q.correctIndex == null
-          ? 0
-          : v.filter((x) => x.option?.optionIndex === q.correctIndex).length;
-
+      const correctAnswers = q.correctIndex == null ? 0 : v.filter((x) => x.option?.optionIndex === q.correctIndex).length;
       const notAnswered = Math.max(0, attendees.length - totalAnswers);
       const incorrect = Math.max(0, totalAnswers - correctAnswers);
 
-      return {
-        questionText: q.question_text,
-        totalAnswers,
-        correctAnswers,
-        incorrect,
-        notAnswered,
-      };
+      return { questionText: q.question_text, totalAnswers, correctAnswers, incorrect, notAnswered };
     });
 
     return { attendees, questions: perQuestion };
   }
 
-  // --- CSV exporter: matches requested layout incl. Not answered + Attendance ---
+  // --- CSV exporter (Excel-ready) ---
   async exportPollCsv(pollId: number): Promise<string> {
-    // ✅ Use `select` for scalars and `include` only for relations
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
       select: {
         title: true,
-        questions: {
-          orderBy: { id: "asc" },
-          select: { id: true, question_text: true, correctIndex: true },
-        },
-        lobby: {
-          include: { user: { select: { id: true, studentNumber: true } } },
-        },
+        questions: { orderBy: { id: "asc" }, select: { id: true, question_text: true, correctIndex: true } },
+        lobby: { include: { user: { select: { id: true, studentNumber: true } } } },
       },
     });
     if (!poll) throw new Error("Poll not found");
 
-    const attendees = poll.lobby.map((e) => e.user); // {id, studentNumber}
+    const attendees = poll.lobby.map((e) => e.user);
     const qIds = poll.questions.map((q) => q.id);
-
     const votes = await prisma.vote.findMany({
       where: { question_id: { in: qIds } },
-      include: {
-        option: { select: { optionIndex: true } },
-        user: { select: { id: true } },
-      },
+      include: { option: { select: { optionIndex: true } }, user: { select: { id: true } } },
     });
 
-    // (userId, questionId) -> chosen optionIndex
     const voteByUserQ = new Map<string, number>();
-    for (const v of votes) {
-      const key = `${v.user.id}-${v.question_id}`;
-      if (!voteByUserQ.has(key)) voteByUserQ.set(key, v.option?.optionIndex ?? -1);
-    }
+    for (const v of votes) voteByUserQ.set(`${v.user.id}-${v.question_id}`, v.option?.optionIndex ?? -1);
 
     const perQ = poll.questions.map((q) => {
-      let correct = 0;
-      let incorrect = 0;
-      let notAnswered = 0;
-
+      let correct = 0, incorrect = 0, notAnswered = 0;
       for (const u of attendees) {
         const key = `${u.id}-${q.id}`;
-        if (!voteByUserQ.has(key)) {
-          notAnswered++;
-        } else {
+        if (!voteByUserQ.has(key)) notAnswered++;
+        else {
           const chosen = voteByUserQ.get(key)!;
           if (q.correctIndex != null && chosen === q.correctIndex) correct++;
           else incorrect++;
@@ -212,7 +178,6 @@ export class AnalyticsService {
     const totalIncorrect = perQ.reduce((s, r) => s + r.incorrect, 0);
     const totalNotAns = perQ.reduce((s, r) => s + r.notAnswered, 0);
     const denomAll = Math.max(1, attendees.length * poll.questions.length);
-
     const pct = (num: number, den: number) => `${den > 0 ? Math.round((num / den) * 100) : 0}%`;
     const esc = (val: unknown) => {
       const s = String(val ?? "");
@@ -220,56 +185,38 @@ export class AnalyticsService {
     };
 
     const out: string[] = [];
-
-    // Title row
     out.push(`${poll.title} stats`);
     out.push("");
+    out.push(["", "Correct", "Incorrect", "Not answered"].join(","));
 
-    // Summary header
-    out.push([ "", "Correct", "Incorrect", "Not answered" ].join(","));
-
-    // q1..qN rows (percentages; denominator = attendees.length)
     const denPerQ = Math.max(1, attendees.length);
     poll.questions.forEach((q, i) => {
       const r = perQ[i];
-      out.push([ `q${i + 1}`, pct(r.correct, denPerQ), pct(r.incorrect, denPerQ), pct(r.notAnswered, denPerQ) ].join(","));
+      out.push([`q${i + 1}`, pct(r.correct, denPerQ), pct(r.incorrect, denPerQ), pct(r.notAnswered, denPerQ)].join(","));
     });
 
-    // Totals row (percentages across all questions * attendees)
-    out.push([ "total", pct(totalCorrect, denomAll), pct(totalIncorrect, denomAll), pct(totalNotAns, denomAll) ].join(","));
-
+    out.push(["total", pct(totalCorrect, denomAll), pct(totalIncorrect, denomAll), pct(totalNotAns, denomAll)].join(","));
     out.push("");
     out.push("Attendance");
-
-    // Attendance header
     const qHeaders = poll.questions.map((_, i) => `q${i + 1}`);
-    out.push([ "", ...qHeaders, "total" ].join(","));
+    out.push(["", ...qHeaders, "total"].join(","));
 
-    // Attendance body
     for (const u of attendees) {
       const cells: string[] = [];
       let correctCount = 0;
-
       poll.questions.forEach((q) => {
         const key = `${u.id}-${q.id}`;
-        if (!voteByUserQ.has(key)) {
-          cells.push("N/A");
-        } else {
+        if (!voteByUserQ.has(key)) cells.push("N/A");
+        else {
           const chosen = voteByUserQ.get(key)!;
-          if (q.correctIndex != null && chosen === q.correctIndex) {
-            correctCount++;
-            cells.push("100%");
-          } else {
-            cells.push("0%");
-          }
+          if (q.correctIndex != null && chosen === q.correctIndex) { correctCount++; cells.push("100%"); }
+          else cells.push("0%");
         }
       });
-
       const totalPct = pct(correctCount, poll.questions.length);
-      out.push([ esc(u.studentNumber ?? ""), ...cells, totalPct ].join(","));
+      out.push([esc(u.studentNumber ?? ""), ...cells, totalPct].join(","));
     }
 
-    // Prepend UTF-8 BOM for Excel
     return "\uFEFF" + out.join("\r\n");
   }
 }
