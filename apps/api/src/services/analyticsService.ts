@@ -110,7 +110,7 @@ export class AnalyticsService {
     return { success: true, message: "Deleted" };
   }
 
-  // --- Live stats used by the stats page ---
+  // --- Live stats used by the stats page (unchanged) ---
   async getPollStats(pollId: number) {
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
@@ -154,48 +154,123 @@ export class AnalyticsService {
     return { attendees, questions: perQuestion };
   }
 
-  // --- NEW: real CSV exporter (UTF-8, with header row) ---
+  // --- CSV exporter: matches requested layout incl. Not answered + Attendance ---
   async exportPollCsv(pollId: number): Promise<string> {
+    // ✅ Use `select` for scalars and `include` only for relations
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
-      select: { title: true, joinCode: true },
+      select: {
+        title: true,
+        questions: {
+          orderBy: { id: "asc" },
+          select: { id: true, question_text: true, correctIndex: true },
+        },
+        lobby: {
+          include: { user: { select: { id: true, studentNumber: true } } },
+        },
+      },
     });
     if (!poll) throw new Error("Poll not found");
 
-    const { attendees, questions } = await this.getPollStats(pollId);
+    const attendees = poll.lobby.map((e) => e.user); // {id, studentNumber}
+    const qIds = poll.questions.map((q) => q.id);
 
-    const esc = (val: unknown) => {
-      const s = String(val ?? "");
-      // Escape double quotes and wrap in quotes if needed
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-
-    const rows: string[] = [];
-    rows.push(`Title,${esc(poll.title)},Join Code,${esc(poll.joinCode)}`);
-    rows.push(`Attendees,${attendees.length}`);
-    rows.push(""); // blank line
-
-    rows.push(
-      ["Question #", "Question text", "Correct", "Incorrect", "Not answered", "Total answers", "Total attendees"]
-        .map(esc)
-        .join(","),
-    );
-
-    questions.forEach((q, i) => {
-      rows.push(
-        [i + 1, q.questionText, q.correctAnswers, q.incorrect, q.notAnswered ?? 0, q.totalAnswers, attendees.length]
-          .map(esc)
-          .join(","),
-      );
+    const votes = await prisma.vote.findMany({
+      where: { question_id: { in: qIds } },
+      include: {
+        option: { select: { optionIndex: true } },
+        user: { select: { id: true } },
+      },
     });
 
-    rows.push(""); // blank line
-    rows.push("Attendee student numbers");
-    attendees.forEach((s) => rows.push(esc(s)));
+    // (userId, questionId) -> chosen optionIndex
+    const voteByUserQ = new Map<string, number>();
+    for (const v of votes) {
+      const key = `${v.user.id}-${v.question_id}`;
+      if (!voteByUserQ.has(key)) voteByUserQ.set(key, v.option?.optionIndex ?? -1);
+    }
 
-    // Prepend UTF-8 BOM so Excel opens it nicely
-    return "\uFEFF" + rows.join("\n");
+    const perQ = poll.questions.map((q) => {
+      let correct = 0;
+      let incorrect = 0;
+      let notAnswered = 0;
+
+      for (const u of attendees) {
+        const key = `${u.id}-${q.id}`;
+        if (!voteByUserQ.has(key)) {
+          notAnswered++;
+        } else {
+          const chosen = voteByUserQ.get(key)!;
+          if (q.correctIndex != null && chosen === q.correctIndex) correct++;
+          else incorrect++;
+        }
+      }
+      return { correct, incorrect, notAnswered };
+    });
+
+    const totalCorrect = perQ.reduce((s, r) => s + r.correct, 0);
+    const totalIncorrect = perQ.reduce((s, r) => s + r.incorrect, 0);
+    const totalNotAns = perQ.reduce((s, r) => s + r.notAnswered, 0);
+    const denomAll = Math.max(1, attendees.length * poll.questions.length);
+
+    const pct = (num: number, den: number) => `${den > 0 ? Math.round((num / den) * 100) : 0}%`;
+    const esc = (val: unknown) => {
+      const s = String(val ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const out: string[] = [];
+
+    // Title row
+    out.push(`${poll.title} stats`);
+    out.push("");
+
+    // Summary header
+    out.push([ "", "Correct", "Incorrect", "Not answered" ].join(","));
+
+    // q1..qN rows (percentages; denominator = attendees.length)
+    const denPerQ = Math.max(1, attendees.length);
+    poll.questions.forEach((q, i) => {
+      const r = perQ[i];
+      out.push([ `q${i + 1}`, pct(r.correct, denPerQ), pct(r.incorrect, denPerQ), pct(r.notAnswered, denPerQ) ].join(","));
+    });
+
+    // Totals row (percentages across all questions * attendees)
+    out.push([ "total", pct(totalCorrect, denomAll), pct(totalIncorrect, denomAll), pct(totalNotAns, denomAll) ].join(","));
+
+    out.push("");
+    out.push("Attendance");
+
+    // Attendance header
+    const qHeaders = poll.questions.map((_, i) => `q${i + 1}`);
+    out.push([ "", ...qHeaders, "total" ].join(","));
+
+    // Attendance body
+    for (const u of attendees) {
+      const cells: string[] = [];
+      let correctCount = 0;
+
+      poll.questions.forEach((q) => {
+        const key = `${u.id}-${q.id}`;
+        if (!voteByUserQ.has(key)) {
+          cells.push("N/A");
+        } else {
+          const chosen = voteByUserQ.get(key)!;
+          if (q.correctIndex != null && chosen === q.correctIndex) {
+            correctCount++;
+            cells.push("100%");
+          } else {
+            cells.push("0%");
+          }
+        }
+      });
+
+      const totalPct = pct(correctCount, poll.questions.length);
+      out.push([ esc(u.studentNumber ?? ""), ...cells, totalPct ].join(","));
+    }
+
+    // Prepend UTF-8 BOM for Excel
+    return "\uFEFF" + out.join("\r\n");
   }
 }
 
