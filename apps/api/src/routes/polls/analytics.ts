@@ -28,14 +28,13 @@ router.get("/:id/stats", authenticateToken, requireRole(["lecturer"]), async (re
   }
 });
 
-// Export (CSV or JSON)
+// Export (CSV or JSON) — CSV now matches the requested layout
 router.get("/:id/export", authenticateToken, requireRole(["lecturer"]), async (req, res) => {
   try {
     const pollId = parseInt(req.params.id);
     const format = ((req.query.format as string) || "json").toLowerCase();
 
     if (format === "csv") {
-      // Build filename from poll title + timestamp
       const meta = await prisma.poll.findUnique({
         where: { id: pollId },
         select: { title: true },
@@ -46,14 +45,13 @@ router.get("/:id/export", authenticateToken, requireRole(["lecturer"]), async (r
       const filename = `${safeTitle}_${ts}.csv`;
 
       const csv = await analyticsService.exportPollCsv(pollId);
-
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.status(200).send(csv);
       return;
     }
 
-    // default JSON
+    // default JSON stats
     const data = await analyticsService.getPollStats(pollId);
     res.json({ success: true, data });
   } catch (error: any) {
