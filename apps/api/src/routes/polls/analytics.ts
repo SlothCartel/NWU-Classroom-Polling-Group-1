@@ -5,7 +5,6 @@ import { prisma } from "../../config/database";
 
 const router = Router();
 
-// Base analytics route
 router.get("/analytics", (_req, res) => {
   res.json({
     success: true,
@@ -17,7 +16,6 @@ router.get("/analytics", (_req, res) => {
   });
 });
 
-// Live stats
 router.get("/:id/stats", authenticateToken, requireRole(["lecturer"]), async (req, res) => {
   try {
     const pollId = parseInt(req.params.id);
@@ -28,30 +26,25 @@ router.get("/:id/stats", authenticateToken, requireRole(["lecturer"]), async (re
   }
 });
 
-// Export (CSV or JSON) — CSV now matches the requested layout
 router.get("/:id/export", authenticateToken, requireRole(["lecturer"]), async (req, res) => {
   try {
     const pollId = parseInt(req.params.id);
     const format = ((req.query.format as string) || "json").toLowerCase();
 
     if (format === "csv") {
-      const meta = await prisma.poll.findUnique({
-        where: { id: pollId },
-        select: { title: true },
-      });
-      const safeTitle =
-        (meta?.title || "poll").replace(/[^a-z0-9_\- ]/gi, "").replace(/\s+/g, "_") || "poll";
+      const meta = await prisma.poll.findUnique({ where: { id: pollId }, select: { title: true } });
+      const safeTitle = (meta?.title || "poll").replace(/[^a-z0-9_\- ]/gi, "").replace(/\s+/g, "_") || "poll";
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `${safeTitle}_${ts}.csv`;
 
       const csv = await analyticsService.exportPollCsv(pollId);
+
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.status(200).send(csv);
-      return;
+      return res.status(200).send(csv);
     }
 
-    // default JSON stats
+    // default JSON
     const data = await analyticsService.getPollStats(pollId);
     res.json({ success: true, data });
   } catch (error: any) {
