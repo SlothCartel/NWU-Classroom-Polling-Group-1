@@ -103,7 +103,7 @@ export class AnalyticsService {
         await tx.answer.deleteMany({ where: { submission_id: sub.id } });
         await tx.submission.delete({ where: { id: sub.id } });
       }
-      // If you also want to wipe live votes for this student, uncomment:
+      // To also wipe live votes for this student, you could add:
       // await tx.vote.deleteMany({ where: { user_id: user.id, question: { poll_id: pollId } } });
     });
 
@@ -154,123 +154,162 @@ export class AnalyticsService {
     return { attendees, questions: perQuestion };
   }
 
-  // --- CSV exporter: matches requested layout incl. Not answered + Attendance ---
+  // --- CSV exporter: matches requested layout incl. Attendance & Not answered ---
   async exportPollCsv(pollId: number): Promise<string> {
-    // ✅ Use `select` for scalars and `include` only for relations
+    // Pull what we need
     const poll = await prisma.poll.findUnique({
       where: { id: pollId },
-      select: {
-        title: true,
+      include: {
         questions: {
           orderBy: { id: "asc" },
           select: { id: true, question_text: true, correctIndex: true },
         },
-        lobby: {
-          include: { user: { select: { id: true, studentNumber: true } } },
-        },
+        lobby: { include: { user: { select: { studentNumber: true } } } },
       },
     });
     if (!poll) throw new Error("Poll not found");
 
-    const attendees = poll.lobby.map((e) => e.user); // {id, studentNumber}
-    const qIds = poll.questions.map((q) => q.id);
+    const attendees = poll.lobby
+      .map((e) => e.user.studentNumber)
+      .filter((s): s is string => !!s);
 
+    const qIds = poll.questions.map((q) => q.id);
     const votes = await prisma.vote.findMany({
       where: { question_id: { in: qIds } },
-      include: {
-        option: { select: { optionIndex: true } },
-        user: { select: { id: true } },
-      },
+      include: { option: { select: { optionIndex: true } } },
     });
 
-    // (userId, questionId) -> chosen optionIndex
-    const voteByUserQ = new Map<string, number>();
-    for (const v of votes) {
-      const key = `${v.user.id}-${v.question_id}`;
-      if (!voteByUserQ.has(key)) voteByUserQ.set(key, v.option?.optionIndex ?? -1);
-    }
+    // Per-question aggregates
+    type Row = {
+      questionText: string;
+      correct: number;
+      incorrect: number;
+      notAnswered: number;
+      total: number;
+    };
 
-    const perQ = poll.questions.map((q) => {
-      let correct = 0;
-      let incorrect = 0;
-      let notAnswered = 0;
-
-      for (const u of attendees) {
-        const key = `${u.id}-${q.id}`;
-        if (!voteByUserQ.has(key)) {
-          notAnswered++;
-        } else {
-          const chosen = voteByUserQ.get(key)!;
-          if (q.correctIndex != null && chosen === q.correctIndex) correct++;
-          else incorrect++;
-        }
-      }
-      return { correct, incorrect, notAnswered };
+    const perQ: Row[] = poll.questions.map((q) => {
+      const v = votes.filter((x) => x.question_id === q.id);
+      const totalAnswers = v.length;
+      const correctAnswers =
+        q.correctIndex == null ? 0 : v.filter((x) => x.option?.optionIndex === q.correctIndex).length;
+      const notAnswered = Math.max(0, attendees.length - totalAnswers);
+      const incorrect = Math.max(0, totalAnswers - correctAnswers);
+      return {
+        questionText: q.question_text,
+        correct: correctAnswers,
+        incorrect,
+        notAnswered,
+        total: totalAnswers,
+      };
     });
 
-    const totalCorrect = perQ.reduce((s, r) => s + r.correct, 0);
-    const totalIncorrect = perQ.reduce((s, r) => s + r.incorrect, 0);
-    const totalNotAns = perQ.reduce((s, r) => s + r.notAnswered, 0);
-    const denomAll = Math.max(1, attendees.length * poll.questions.length);
+    const pct = (num: number, den: number) =>
+      den > 0 ? `${Math.round((num / den) * 100)}%` : "0%";
 
-    const pct = (num: number, den: number) => `${den > 0 ? Math.round((num / den) * 100) : 0}%`;
     const esc = (val: unknown) => {
       const s = String(val ?? "");
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
-    const out: string[] = [];
+    const rows: string[] = [];
 
     // Title row
-    out.push(`${poll.title} stats`);
-    out.push("");
+    rows.push(`${esc(poll.title)} exporting stats`);
 
-    // Summary header
-    out.push([ "", "Correct", "Incorrect", "Not answered" ].join(","));
+    // Attendance block (blank line, label, number in column B)
+    rows.push("");
+    rows.push("Attendance");
+    rows.push(`,${attendees.length}`);
+    rows.push("");
 
-    // q1..qN rows (percentages; denominator = attendees.length)
-    const denPerQ = Math.max(1, attendees.length);
-    poll.questions.forEach((q, i) => {
-      const r = perQ[i];
-      out.push([ `q${i + 1}`, pct(r.correct, denPerQ), pct(r.incorrect, denPerQ), pct(r.notAnswered, denPerQ) ].join(","));
+    // Question table header (percentages)
+    rows.push(["", "Correct", "Incorrect", "Not answered"].map(esc).join(","));
+
+    perQ.forEach((q, i) => {
+      rows.push(
+        [
+          `q${i + 1}`,
+          pct(q.correct, attendees.length),
+          pct(q.incorrect, attendees.length),
+          pct(q.notAnswered, attendees.length),
+        ]
+          .map(esc)
+          .join(","),
+      );
     });
 
-    // Totals row (percentages across all questions * attendees)
-    out.push([ "total", pct(totalCorrect, denomAll), pct(totalIncorrect, denomAll), pct(totalNotAns, denomAll) ].join(","));
+    // Totals row (percentages across attendees * number of questions)
+    const totals = perQ.reduce(
+      (acc, r) => {
+        acc.correct += r.correct;
+        acc.incorrect += r.incorrect;
+        acc.notAnswered += r.notAnswered;
+        return acc;
+      },
+      { correct: 0, incorrect: 0, notAnswered: 0 },
+    );
+    const denom = attendees.length * Math.max(1, perQ.length);
+    rows.push(
+      ["total", pct(totals.correct, denom), pct(totals.incorrect, denom), pct(totals.notAnswered, denom)]
+        .map(esc)
+        .join(","),
+    );
 
-    out.push("");
-    out.push("Attendance");
+    // Blank and detailed attendance table (per-student correctness %)
+    rows.push("");
+    rows.push("Attendance");
+    rows.push(["", ...perQ.map((_, i) => `q${i + 1}`), "total"].map(esc).join(","));
 
-    // Attendance header
-    const qHeaders = poll.questions.map((_, i) => `q${i + 1}`);
-    out.push([ "", ...qHeaders, "total" ].join(","));
+    // Map of questionId -> correctIndex
+    const correctIndexByQ = new Map<number, number | null>(
+      poll.questions.map((q) => [q.id, q.correctIndex ?? null]),
+    );
 
-    // Attendance body
-    for (const u of attendees) {
-      const cells: string[] = [];
-      let correctCount = 0;
-
-      poll.questions.forEach((q) => {
-        const key = `${u.id}-${q.id}`;
-        if (!voteByUserQ.has(key)) {
-          cells.push("N/A");
-        } else {
-          const chosen = voteByUserQ.get(key)!;
-          if (q.correctIndex != null && chosen === q.correctIndex) {
-            correctCount++;
-            cells.push("100%");
-          } else {
-            cells.push("0%");
-          }
-        }
+    for (const student of attendees) {
+      // find this user id (may not exist; if not, show N/A per question)
+      const user = await prisma.user.findUnique({
+        where: { studentNumber: student },
+        select: { id: true },
       });
 
-      const totalPct = pct(correctCount, poll.questions.length);
-      out.push([ esc(u.studentNumber ?? ""), ...cells, totalPct ].join(","));
+      let perQStudentPct: string[] = [];
+      let totalCorrect = 0;
+
+      if (user) {
+        const svotes = await prisma.vote.findMany({
+          where: { user_id: user.id, question_id: { in: qIds } },
+          include: { option: { select: { optionIndex: true } } },
+        });
+
+        const byQ = new Map<number, number>(); // qId -> chosen optionIndex
+        for (const v of svotes) {
+          if (typeof v.option?.optionIndex === "number") {
+            byQ.set(v.question_id, v.option.optionIndex);
+          }
+        }
+
+        perQStudentPct = poll.questions.map((q) => {
+          const chosen = byQ.get(q.id);
+          const correctIdx = correctIndexByQ.get(q.id);
+          if (chosen == null) return "N/A"; // not answered by this student
+          const ok = correctIdx != null && chosen === correctIdx;
+          if (ok) totalCorrect += 1;
+          return ok ? "100%" : "0%";
+        });
+      } else {
+        perQStudentPct = poll.questions.map(() => "N/A");
+      }
+
+      const totalPct = perQ.length > 0 ? `${Math.round((totalCorrect / perQ.length) * 100)}%` : "0%";
+      rows.push([student, ...perQStudentPct, totalPct].map(esc).join(","));
     }
 
-    // Prepend UTF-8 BOM for Excel
-    return "\uFEFF" + out.join("\r\n");
+    // ---- Finalize file with Excel-friendly settings ----
+    // 1) Excel separator hint so comma is used as the delimiter (avoids 0,1 issue)
+    // 2) UTF-8 BOM for proper Unicode handling
+    const content = ["sep=,", ...rows].join("\n");
+    return "\uFEFF" + content;
   }
 }
 
