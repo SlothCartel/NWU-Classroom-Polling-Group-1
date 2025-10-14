@@ -1,270 +1,277 @@
-// src/pages/StatsPage.tsx
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { getPollStats, getPollById } from "@/lib/api";
-import type { Poll } from "@/lib/types";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  CartesianGrid,
-} from "recharts";
-import { setRole } from "@/lib/auth";
+import { prisma } from "../config/database";
 
-type QStat = {
-  qIndex: number;
-  text: string;
-  correct: number;
-  incorrect: number;
-  notAnswered?: number;
-};
+const LABELS = ["A", "B", "C", "D"] as const;
 
-export default function StatsPage() {
-  // support /stats/:id or /stats/:pollId
-  const params = useParams<{ id?: string; pollId?: string }>();
-  const statId = params.pollId ?? params.id ?? "";
+export class AnalyticsService {
+  // --- Student history (unchanged) ---
+  async getStudentSubmissionHistory(studentNumber: string) {
+    const user = await prisma.user.findUnique({
+      where: { studentNumber },
+      select: { id: true },
+    });
+    if (!user) return [];
 
-  const navigate = useNavigate();
-
-  const [poll, setPoll] = useState<Poll | null>(null);
-  const [attendees, setAttendees] = useState<string[]>([]);
-  const [perQuestion, setPerQuestion] = useState<QStat[]>([]);
-  const [openAtt, setOpenAtt] = useState(false);
-
-  // export confirm + toast
-  const [showExportConfirm, setShowExportConfirm] = useState(false);
-  const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(
-    null,
-  );
-
-  // filename helper
-  const csvFilename = useMemo(() => {
-    const t = (poll?.title || "poll").replace(/[^a-z0-9_\- ]/gi, "").replace(/\s+/g, "_");
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    return `${t}_${ts}.csv`;
-  }, [poll?.title]);
-
-  useEffect(() => {
-    let cancel = false;
-
-    async function loadOnce() {
-      if (!statId) return;
-      try {
-        const p = await getPollById(statId);
-        if (!cancel) setPoll(p);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    async function tick() {
-      if (!statId) return;
-      try {
-        const s = await getPollStats(statId);
-        if (cancel) return;
-        setAttendees(s.attendees);
-        setPerQuestion(s.perQuestion as QStat[]);
-      } finally {
-        if (!cancel) setTimeout(tick, 2000);
-      }
-    }
-
-    loadOnce();
-    tick();
-    return () => {
-      cancel = true;
-    };
-  }, [statId]);
-
-  const handleBack = () => {
-    setRole("lecturer");
-    navigate("/dashboard");
-  };
-
-  // --- export helpers ---
-  function flash(kind: "ok" | "err", msg: string) {
-    setToast({ kind, msg });
-    setTimeout(() => setToast(null), 3000);
-  }
-
-  function getStoredToken(): string | null {
-    const keys = ["token", "authToken", "access_token", "accessToken", "jwt", "id_token"];
-    for (const k of keys) {
-      const v = localStorage.getItem(k) || sessionStorage.getItem(k);
-      if (v && v.trim()) return v;
-    }
-    return null;
-  }
-
-  async function doExportCsv() {
-    try {
-      const token = getStoredToken();
-      if (!token) {
-        flash("err", "You’re not signed in (no access token found).");
-        setShowExportConfirm(false);
-        return;
-      }
-
-      const res = await fetch(`/api/polls/${statId}/export?format=csv`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "text/csv,application/json",
+    const subs = await prisma.submission.findMany({
+      where: { user_id: user.id },
+      orderBy: { submitted_at: "desc" },
+      include: {
+        poll: {
+          select: {
+            id: true,
+            title: true,
+            joinCode: true,
+            questions: {
+              orderBy: { id: "asc" },
+              include: { options: true },
+            },
+          },
         },
+        answers: {
+          include: {
+            question: { select: { id: true, question_text: true, correctIndex: true } },
+            option: { select: { id: true, option_text: true, optionIndex: true } },
+          },
+        },
+      },
+    });
+
+    return subs.map((s) => {
+      const qIndexById = new Map<number, number>();
+      s.poll.questions.forEach((q, idx) => qIndexById.set(q.id, idx));
+
+      const optionsByQid = new Map<number, { label: string; text: string }[]>();
+      for (const q of s.poll.questions) {
+        const opts = [...q.options]
+          .sort((a, b) => a.optionIndex - b.optionIndex)
+          .map((o) => ({ label: LABELS[o.optionIndex] ?? "A", text: o.option_text }));
+        optionsByQid.set(q.id, opts);
+      }
+
+      const raw = s.answers.map((a) => {
+        const idx = qIndexById.get(a.question_id) ?? 0;
+        return {
+          qIndex: idx,
+          questionId: a.question_id,
+          question: a.question?.question_text ?? "",
+          chosenIndex: typeof a.option?.optionIndex === "number" ? a.option!.optionIndex : -1,
+          correctIndex:
+            typeof a.question?.correctIndex === "number"
+              ? (a.question!.correctIndex as number)
+              : -1,
+          correct: a.is_correct === true,
+        };
       });
 
-      if (!res.ok) {
-        let errText = `Export failed (${res.status})`;
-        try {
-          const j = await res.json();
-          if (j?.error) errText = j.error;
-        } catch {}
-        flash("err", errText);
-        setShowExportConfirm(false);
-        return;
-      }
+      const feedback = raw
+        .sort((x, y) => x.qIndex - y.qIndex)
+        .map((row) => ({
+          qIndex: row.qIndex,
+          question: row.question,
+          options: optionsByQid.get(row.questionId) ?? [],
+          chosenIndex: row.chosenIndex,
+          correctIndex: row.correctIndex,
+          correct: row.correct,
+        }));
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = csvFilename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      flash("ok", "Export started — check your Downloads.");
-    } catch (e: any) {
-      flash("err", e?.message || "Export failed");
-    } finally {
-      setShowExportConfirm(false);
-    }
+      return {
+        pollId: String(s.poll.id),
+        title: s.poll.title,
+        pollTitle: s.poll.title,
+        joinCode: s.poll.joinCode,
+        submittedAt: s.submitted_at,
+        score: s.score,
+        total: s.total,
+        feedback,
+      };
+    });
   }
 
-  return (
-    <div className="min-h-screen bg-purple-700 text-purple-900">
-      <div className="mx-auto max-w-5xl p-6">
-        <div className="bg-white/95 rounded-3xl shadow-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">{poll?.title ?? "Poll stats"}</h1>
-              <p className="text-sm text-gray-500">Live results (updates every ~2s)</p>
-            </div>
-            <button className="btn-secondary" onClick={handleBack}>
-              Back to dashboard
-            </button>
-          </div>
+  // --- Delete submission (unchanged logic) ---
+  async deleteStudentSubmission(studentNumber: string, pollId: number) {
+    const user = await prisma.user.findUnique({
+      where: { studentNumber },
+      select: { id: true },
+    });
+    if (!user) throw new Error("Student not found");
 
-          {/* Attendance */}
-          <div className="mt-6">
-            <button
-              className="btn-primary"
-              onClick={() => setOpenAtt((v) => !v)}
-              aria-expanded={openAtt}
-            >
-              Attendance ({attendees.length})
-            </button>
-            {openAtt && (
-              <div className="mt-3 border rounded-xl p-3 max-h-56 overflow-auto">
-                {attendees.length === 0 ? (
-                  <div className="text-gray-500 text-sm">No students yet.</div>
-                ) : (
-                  <ul className="grid sm:grid-cols-2 gap-2">
-                    {attendees.map((s) => (
-                      <li key={s} className="font-mono bg-purple-50 rounded-lg px-3 py-2">
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
+    await prisma.$transaction(async (tx) => {
+      const sub = await tx.submission.findUnique({
+        where: { poll_id_user_id: { poll_id: pollId, user_id: user.id } },
+        select: { id: true },
+      });
+      if (sub) {
+        await tx.answer.deleteMany({ where: { submission_id: sub.id } });
+        await tx.submission.delete({ where: { id: sub.id } });
+      }
+      // If you also want to wipe live votes for this student, uncomment:
+      // await tx.vote.deleteMany({ where: { user_id: user.id, question: { poll_id: pollId } } });
+    });
 
-          {/* Charts */}
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold mb-3">Per-question correctness</h2>
+    return { success: true, message: "Deleted" };
+  }
 
-            <div className="grid md:grid-cols-2 gap-5">
-              {perQuestion.map((q) => {
-                const data = [
-                  {
-                    name: "Responses",
-                    Correct: q.correct,
-                    Incorrect: q.incorrect,
-                    "Not answered": q.notAnswered ?? 0,
-                  },
-                ];
-                return (
-                  <div key={q.qIndex} className="bg-white rounded-2xl border p-4">
-                    <div className="text-sm font-semibold mb-2">
-                      Q{q.qIndex + 1}. {q.text}
-                    </div>
-                    <div className="w-full h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis allowDecimals={false} />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="Correct" fill="#16a34a" />
-                          <Bar dataKey="Incorrect" fill="#dc2626" />
-                          <Bar dataKey="Not answered" fill="#9ca3af" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+  // --- Live stats used by the stats page (unchanged) ---
+  async getPollStats(pollId: number) {
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+      include: {
+        questions: { include: { options: true } },
+        lobby: { include: { user: { select: { studentNumber: true } } } },
+      },
+    });
+    if (!poll) throw new Error("Poll not found");
 
-          {/* Footer actions */}
-          <div className="mt-6 flex justify-end gap-3">
-            <button className="btn-primary" onClick={() => setShowExportConfirm(true)}>
-              Export to CSV
-            </button>
-          </div>
-        </div>
-      </div>
+    const attendees = poll.lobby
+      .map((e) => e.user.studentNumber)
+      .filter((s): s is string => !!s);
 
-      {/* Confirm Export modal */}
-      {showExportConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl p-6 w-[min(90vw,380px)] shadow-2xl">
-            <h3 className="text-lg font-semibold mb-2">Export to CSV</h3>
-            <p className="text-sm text-gray-600 mb-5">
-              Are you sure you want to export this poll’s results to CSV?
-            </p>
+    const qIds = poll.questions.map((q) => q.id);
+    const votes = await prisma.vote.findMany({
+      where: { question_id: { in: qIds } },
+      include: { option: { select: { optionIndex: true } } },
+    });
 
-            <div className="flex justify-end gap-2">
-              <button className="btn-secondary" onClick={() => setShowExportConfirm(false)}>
-                No
-              </button>
-              <button className="btn-primary" onClick={doExportCsv}>
-                Yes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    const perQuestion = poll.questions.map((q) => {
+      const v = votes.filter((x) => x.question_id === q.id);
+      const totalAnswers = v.length;
+      const correctAnswers =
+        q.correctIndex == null
+          ? 0
+          : v.filter((x) => x.option?.optionIndex === q.correctIndex).length;
 
-      {/* Toasts */}
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg text-white ${
-            toast.kind === "ok" ? "bg-green-600" : "bg-red-600"
-          }`}
-          role="status"
-        >
-          {toast.msg}
-        </div>
-      )}
-    </div>
-  );
+      const notAnswered = Math.max(0, attendees.length - totalAnswers);
+      const incorrect = Math.max(0, totalAnswers - correctAnswers);
+
+      return {
+        questionText: q.question_text,
+        totalAnswers,
+        correctAnswers,
+        incorrect,
+        notAnswered,
+      };
+    });
+
+    return { attendees, questions: perQuestion };
+  }
+
+  // --- CSV exporter: matches requested layout incl. Not answered + Attendance ---
+  async exportPollCsv(pollId: number): Promise<string> {
+    // ✅ Use `select` for scalars and `include` only for relations
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+      select: {
+        title: true,
+        questions: {
+          orderBy: { id: "asc" },
+          select: { id: true, question_text: true, correctIndex: true },
+        },
+        lobby: {
+          include: { user: { select: { id: true, studentNumber: true } } },
+        },
+      },
+    });
+    if (!poll) throw new Error("Poll not found");
+
+    const attendees = poll.lobby.map((e) => e.user); // {id, studentNumber}
+    const qIds = poll.questions.map((q) => q.id);
+
+    const votes = await prisma.vote.findMany({
+      where: { question_id: { in: qIds } },
+      include: {
+        option: { select: { optionIndex: true } },
+        user: { select: { id: true } },
+      },
+    });
+
+    // (userId, questionId) -> chosen optionIndex
+    const voteByUserQ = new Map<string, number>();
+    for (const v of votes) {
+      const key = `${v.user.id}-${v.question_id}`;
+      if (!voteByUserQ.has(key)) voteByUserQ.set(key, v.option?.optionIndex ?? -1);
+    }
+
+    const perQ = poll.questions.map((q) => {
+      let correct = 0;
+      let incorrect = 0;
+      let notAnswered = 0;
+
+      for (const u of attendees) {
+        const key = `${u.id}-${q.id}`;
+        if (!voteByUserQ.has(key)) {
+          notAnswered++;
+        } else {
+          const chosen = voteByUserQ.get(key)!;
+          if (q.correctIndex != null && chosen === q.correctIndex) correct++;
+          else incorrect++;
+        }
+      }
+      return { correct, incorrect, notAnswered };
+    });
+
+    const totalCorrect = perQ.reduce((s, r) => s + r.correct, 0);
+    const totalIncorrect = perQ.reduce((s, r) => s + r.incorrect, 0);
+    const totalNotAns = perQ.reduce((s, r) => s + r.notAnswered, 0);
+    const denomAll = Math.max(1, attendees.length * poll.questions.length);
+
+    const pct = (num: number, den: number) => `${den > 0 ? Math.round((num / den) * 100) : 0}%`;
+    const esc = (val: unknown) => {
+      const s = String(val ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const out: string[] = [];
+
+    // Title row
+    out.push(`${poll.title} stats`);
+    out.push("");
+
+    // Summary header
+    out.push([ "", "Correct", "Incorrect", "Not answered" ].join(","));
+
+    // q1..qN rows (percentages; denominator = attendees.length)
+    const denPerQ = Math.max(1, attendees.length);
+    poll.questions.forEach((q, i) => {
+      const r = perQ[i];
+      out.push([ `q${i + 1}`, pct(r.correct, denPerQ), pct(r.incorrect, denPerQ), pct(r.notAnswered, denPerQ) ].join(","));
+    });
+
+    // Totals row (percentages across all questions * attendees)
+    out.push([ "total", pct(totalCorrect, denomAll), pct(totalIncorrect, denomAll), pct(totalNotAns, denomAll) ].join(","));
+
+    out.push("");
+    out.push("Attendance");
+
+    // Attendance header
+    const qHeaders = poll.questions.map((_, i) => `q${i + 1}`);
+    out.push([ "", ...qHeaders, "total" ].join(","));
+
+    // Attendance body
+    for (const u of attendees) {
+      const cells: string[] = [];
+      let correctCount = 0;
+
+      poll.questions.forEach((q) => {
+        const key = `${u.id}-${q.id}`;
+        if (!voteByUserQ.has(key)) {
+          cells.push("N/A");
+        } else {
+          const chosen = voteByUserQ.get(key)!;
+          if (q.correctIndex != null && chosen === q.correctIndex) {
+            correctCount++;
+            cells.push("100%");
+          } else {
+            cells.push("0%");
+          }
+        }
+      });
+
+      const totalPct = pct(correctCount, poll.questions.length);
+      out.push([ esc(u.studentNumber ?? ""), ...cells, totalPct ].join(","));
+    }
+
+    // Prepend UTF-8 BOM for Excel
+    return "\uFEFF" + out.join("\r\n");
+  }
 }
+
+export const analyticsService = new AnalyticsService();
