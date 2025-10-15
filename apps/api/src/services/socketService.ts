@@ -9,7 +9,7 @@ export class SocketService {
   constructor(server: HTTPServer) {
     // Read CORS origin from env for both local and production
     const allowedOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
-    
+
     this.io = new SocketIOServer(server, {
       cors: {
         origin: allowedOrigin,
