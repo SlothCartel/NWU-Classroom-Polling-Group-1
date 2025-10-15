@@ -1,0 +1,1 @@
+{"version":3,"file":"grading.d.ts","sourceRoot":"","sources":["../../src/utils/grading.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAsB,YAAY,EAAE,MAAM,UAAU,CAAC;AAE1E,wBAAgB,eAAe,CAC7B,SAAS,EAAE,YAAY,EAAE,EACzB,OAAO,EAAE,KAAK,CAAC;IAAE,UAAU,EAAE,MAAM,CAAC;IAAC,WAAW,EAAE,MAAM,CAAA;CAAE,CAAC,GAC1D,YAAY,CAwBd"}
