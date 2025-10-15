@@ -5,17 +5,17 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (socket) return socket;
-  
+
   // Get the API URL from environment variable
   const apiUrl = import.meta.env.VITE_API_BASE_URL as string;
   // Remove /api suffix to get the server base URL for socket connection
   const serverBase = apiUrl.replace(/\/api$/, "");
-  
-  socket = io(serverBase, { 
-    auth: { token: getToken() || "" }, 
+
+  socket = io(serverBase, {
+    auth: { token: getToken() || "" },
     transports: ["websocket", "polling"] // Include polling as fallback for Azure
   });
-  
+
   return socket;
 }
 
