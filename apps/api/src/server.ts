@@ -18,10 +18,14 @@ const startServer = async () => {
     await prisma.$connect();
     console.log("✅ Database connected successfully");
 
+    // Read CORS origin from env for both local and production
+    const allowedOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🔌 WebSocket server initialized`);
+      console.log(`🌐 Allowed origin: ${allowedOrigin}`);
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error);

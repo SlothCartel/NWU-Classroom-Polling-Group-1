@@ -7,9 +7,12 @@ export class SocketService {
   private pollRooms: Map<string, Set<string>> = new Map();
 
   constructor(server: HTTPServer) {
+    // Read CORS origin from env for both local and production
+    const allowedOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+    
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        origin: allowedOrigin,
         methods: ["GET", "POST"],
       },
     });

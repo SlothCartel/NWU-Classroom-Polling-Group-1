@@ -25,4 +25,4 @@ RUN addgroup -S nodegrp && adduser -S nodeusr -G nodegrp
 USER nodeusr
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/server.js"]

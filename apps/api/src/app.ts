@@ -7,8 +7,14 @@ import studentRoutes from "./routes/students";
 
 const app = express();
 
+// Read CORS origin from env for both local and production
+const allowedOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
