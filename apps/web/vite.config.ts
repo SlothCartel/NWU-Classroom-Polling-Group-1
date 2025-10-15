@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5173,
     proxy: {
       "/api": {
         target: "http://localhost:8080",
@@ -21,5 +22,8 @@ export default defineConfig({
         // keep "/api" (your backend is mounted at /api already)
       },
     },
+  },
+  build: {
+    outDir: 'dist',
   },
 });
