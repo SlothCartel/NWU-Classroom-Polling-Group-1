@@ -11,14 +11,26 @@ const polls_1 = __importDefault(require("./routes/polls"));
 const students_1 = __importDefault(require("./routes/students"));
 const app = (0, express_1.default)();
 // Read CORS origin from env for both local and production
-const allowedOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
-// Middleware
+const allowedOrigins = [
+    "http://localhost:5173", // local vite dev
+    "https://nwu-live-poll.vercel.app", // your Vercel frontend
+    "https://zsn02j9r-8080.inc1.devtunnels.ms", // your dev tunnel
+];
 app.use((0, cors_1.default)({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+        // allow requests with no origin (like curl, mobile apps)
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        else {
+            return callback(new Error("CORS not allowed for this origin"));
+        }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
 // Health check endpoint - let's add this!
 app.get("/api", (req, res) => {
     res.json({

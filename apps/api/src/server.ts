@@ -3,6 +3,7 @@ import app from "./app";
 import { initializeSocketService } from "./services/socketService";
 import { prisma } from "./config/database";
 
+console.log('🔄 Server starting with latest changes...');
 const PORT = process.env.PORT || 8080;
 
 // Create HTTP server
