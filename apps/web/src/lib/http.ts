@@ -1,6 +1,11 @@
 import { getToken, clearAuth } from "./auth";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
+const API_BASE = import.meta.env.VITE_API_BASE_URL as string || "https://zsn02j9r-8080.inc1.devtunnels.ms/api";
+
+// Debug logging for API_BASE
+console.log("🔧 HTTP Debug - API_BASE:", API_BASE);
+console.log("🔧 HTTP Debug - Raw env var:", import.meta.env.VITE_API_BASE_URL);
+console.log("🔧 HTTP Debug - All env vars:", import.meta.env);
 
 /**
  * Special request handler for blob responses (like CSV exports)
