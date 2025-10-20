@@ -360,7 +360,7 @@ export const exportPollCsv = async (id: string | number): Promise<Blob> => {
   // but handle the response as a blob
   const url = `/polls/${id}/export?format=csv`;
   const token = getToken();
-  
+
   if (!token) {
     throw new Error("No authentication token found");
   }
