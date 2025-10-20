@@ -1,7 +1,7 @@
 // apps/web/src/lib/api.ts (top of file – replace the mapping helpers)
 
 import { http } from "./http";
-import { setToken, setRole, getToken } from "./auth";
+import { setToken, setRole } from "./auth";
 import type {
   ApiOk,
   ServerPoll,
@@ -356,36 +356,7 @@ export const getPollStats = async (id: string | number) => {
 
 // Export poll data as CSV
 export const exportPollCsv = async (id: string | number): Promise<Blob> => {
-  // Use a different approach - make the request through the http helper
-  // but handle the response as a blob
-  const url = `/polls/${id}/export?format=csv`;
-  const token = getToken();
-
-  if (!token) {
-    throw new Error("No authentication token found");
-  }
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
-  const response = await fetch(`${API_BASE}${url}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'text/csv,application/json',
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Export failed (${response.status})`;
-    try {
-      const errorData = await response.json();
-      if (errorData?.error) errorMessage = errorData.error;
-    } catch {
-      // If we can't parse JSON, use the default error message
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response.blob();
+  return http.blob(`/polls/${id}/export?format=csv`);
 };
 
 // ---------- STUDENT history ----------

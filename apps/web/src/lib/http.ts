@@ -3,6 +3,51 @@ import { getToken, clearAuth } from "./auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
 
 /**
+ * Special request handler for blob responses (like CSV exports)
+ */
+async function requestBlob(
+  path: string,
+  init: RequestInit = {},
+  auth: boolean = true
+): Promise<Blob> {
+  const headers: Record<string, string> = {
+    "Accept": "text/csv,application/json",
+    ...(init.headers as Record<string, string> | undefined),
+  };
+
+  // Attach token when needed
+  if (auth) {
+    const token = getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn("⚠️ No token found for authenticated request:", path);
+    }
+  }
+
+  const url = `${API_BASE}${path}`;
+  console.debug(`HTTP ${init.method || "GET"} → ${url} (blob)`, {
+    auth,
+    hasAuthHeader: !!headers.Authorization,
+  });
+
+  const res = await fetch(url, { ...init, headers });
+
+  if (!res.ok) {
+    // Try to get error message from JSON response
+    try {
+      const errorData = await res.json();
+      const msg = errorData?.error || errorData?.message || `API ${res.status} ${res.statusText}`;
+      throw new Error(msg);
+    } catch {
+      throw new Error(`API ${res.status} ${res.statusText}`);
+    }
+  }
+
+  return res.blob();
+}
+
+/**
  * Centralized API request handler.
  * Automatically attaches Bearer token when available.
  * Handles JSON parsing and 401/403 cleanups.
@@ -76,4 +121,8 @@ export const http = {
       { method: "PUT", body: body ? JSON.stringify(body) : undefined },
       auth
     ),
+
+  // Special method for blob responses (CSV exports)
+  blob: (p: string, auth = true) =>
+    requestBlob(p, { method: "GET" }, auth),
 };
