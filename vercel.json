@@ -10,6 +10,5 @@
       "config": { "distDir": "apps/web/dist" }
     }
   ],
-  "framework": "vite",
-  "rootDirectory": "apps/web"
+  "framework": "vite"
 }
