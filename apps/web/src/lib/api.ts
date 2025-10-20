@@ -356,10 +356,21 @@ export const getPollStats = async (id: string | number) => {
 
 // Export poll data as CSV
 export const exportPollCsv = async (id: string | number): Promise<Blob> => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/polls/${id}/export?format=csv`, {
+  // Use a different approach - make the request through the http helper
+  // but handle the response as a blob
+  const url = `/polls/${id}/export?format=csv`;
+  const token = getToken();
+  
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
+  const response = await fetch(`${API_BASE}${url}`, {
     headers: {
-      'Authorization': `Bearer ${getToken()}`,
+      'Authorization': `Bearer ${token}`,
       'Accept': 'text/csv,application/json',
+      'Content-Type': 'application/json',
     },
   });
 
