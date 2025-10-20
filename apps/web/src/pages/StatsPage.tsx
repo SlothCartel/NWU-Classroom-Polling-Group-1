@@ -1,7 +1,7 @@
 // src/pages/StatsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getPollStats, getPollById } from "@/lib/api";
+import { getPollStats, getPollById, exportPollCsv } from "@/lib/api";
 import type { Poll } from "@/lib/types";
 import {
   BarChart,
@@ -109,26 +109,9 @@ export default function StatsPage() {
         return;
       }
 
-      const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
-      const res = await fetch(`${API_BASE}/polls/${statId}/export?format=csv`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "text/csv,application/json",
-        },
-      });
+      console.log('🔍 Export Debug - Using API function, statId:', statId);
 
-      if (!res.ok) {
-        let errText = `Export failed (${res.status})`;
-        try {
-          const j = await res.json();
-          if (j?.error) errText = j.error;
-        } catch {}
-        flash("err", errText);
-        setShowExportConfirm(false);
-        return;
-      }
-
-      const blob = await res.blob();
+      const blob = await exportPollCsv(statId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

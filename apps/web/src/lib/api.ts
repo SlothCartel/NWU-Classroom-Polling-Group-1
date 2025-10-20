@@ -1,7 +1,7 @@
 // apps/web/src/lib/api.ts (top of file – replace the mapping helpers)
 
 import { http } from "./http";
-import { setToken, setRole } from "./auth";
+import { setToken, setRole, getToken } from "./auth";
 import type {
   ApiOk,
   ServerPoll,
@@ -352,6 +352,29 @@ export const getPollStats = async (id: string | number) => {
   });
 
   return { attendees, perQuestion };
+};
+
+// Export poll data as CSV
+export const exportPollCsv = async (id: string | number): Promise<Blob> => {
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/polls/${id}/export?format=csv`, {
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'text/csv,application/json',
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Export failed (${response.status})`;
+    try {
+      const errorData = await response.json();
+      if (errorData?.error) errorMessage = errorData.error;
+    } catch {
+      // If we can't parse JSON, use the default error message
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.blob();
 };
 
 // ---------- STUDENT history ----------
