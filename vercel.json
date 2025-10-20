@@ -1,14 +1,7 @@
 {
-  "builds": [
-    {
-      "src": "apps/web/package.json",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "apps/web/vite.config.ts",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "apps/web/dist" }
-    }
-  ],
-  "framework": "vite"
+  "buildCommand": "cd apps/web && npm ci && npm run build",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "functions": {}
 }
