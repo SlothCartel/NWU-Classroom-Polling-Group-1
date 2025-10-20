@@ -1,7 +1,7 @@
 // apps/web/src/lib/api.ts (top of file – replace the mapping helpers)
 
 import { http } from "./http";
-import { setToken, setRole } from "./auth";
+import { setToken, setRole, getToken } from "./auth";
 import type {
   ApiOk,
   ServerPoll,
@@ -356,7 +356,33 @@ export const getPollStats = async (id: string | number) => {
 
 // Export poll data as CSV
 export const exportPollCsv = async (id: string | number): Promise<Blob> => {
-  return http.blob(`/polls/${id}/export?format=csv`);
+  // Hardcoded URL to bypass environment variable issues
+  const url = `https://zsn02j9r-8080.inc1.devtunnels.ms/api/polls/${id}/export?format=csv`;
+  const token = getToken();
+
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'text/csv,application/json',
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Export failed (${response.status})`;
+    try {
+      const errorData = await response.json();
+      if (errorData?.error) errorMessage = errorData.error;
+    } catch {
+      // If we can't parse JSON, use the default error message
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.blob();
 };
 
 // ---------- STUDENT history ----------
