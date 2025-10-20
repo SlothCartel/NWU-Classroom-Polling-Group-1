@@ -7,6 +7,7 @@ const http_1 = require("http");
 const app_1 = __importDefault(require("./app"));
 const socketService_1 = require("./services/socketService");
 const database_1 = require("./config/database");
+console.log('🔄 Server starting with latest changes...');
 const PORT = process.env.PORT || 8080;
 // Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);

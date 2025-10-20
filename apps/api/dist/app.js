@@ -9,28 +9,84 @@ const errorHandler_1 = require("./middleware/errorHandler");
 const auth_1 = __importDefault(require("./routes/auth"));
 const polls_1 = __importDefault(require("./routes/polls"));
 const students_1 = __importDefault(require("./routes/students"));
+// Force restart
+console.log('🔄 Starting server with updated CORS configuration...');
 const app = (0, express_1.default)();
+// CORS Headers middleware - MUST be first to ensure headers are always set
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    console.log('🌐 Request:', req.method, req.path, 'from origin:', origin); // Updated CORS handling
+    // For debugging - be more permissive temporarily
+    const isAllowed = !origin ||
+        origin.includes('localhost') ||
+        origin.includes('vercel.app') ||
+        origin.includes('devtunnels.ms') ||
+        allowedOrigins.some(allowed => (typeof allowed === 'string' && allowed === origin) ||
+            (allowed instanceof RegExp && allowed.test(origin)));
+    if (isAllowed) {
+        res.header("Access-Control-Allow-Origin", origin || "*");
+        res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
+        res.header("Access-Control-Allow-Credentials", "true");
+        console.log('✅ CORS headers set for origin:', origin);
+    }
+    else {
+        console.log('❌ Origin rejected:', origin);
+        console.log('📋 Allowed origins:', allowedOrigins);
+    }
+    // Handle preflight requests immediately
+    if (req.method === 'OPTIONS') {
+        console.log('🔧 Handling OPTIONS preflight request');
+        return res.sendStatus(200);
+    }
+    next();
+});
 // Read CORS origin from env for both local and production
 const allowedOrigins = [
     "http://localhost:5173", // local vite dev
     "https://nwu-live-poll.vercel.app", // your Vercel frontend
-    "https://zsn02j9r-8080.inc1.devtunnels.ms", // your dev tunnel
+    "https://zsn02j9r-8080.inc1.devtunnels.ms", // your dev tunnel (no trailing slash)
+    // Add pattern for any Vercel app
+    /https:\/\/.*\.vercel\.app$/,
 ];
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
+        console.log('🌐 CORS Request from origin:', origin);
         // allow requests with no origin (like curl, mobile apps)
-        if (!origin)
-            return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
+        if (!origin) {
+            console.log('✅ Allowing request with no origin');
             return callback(null, true);
         }
-        else {
-            return callback(new Error("CORS not allowed for this origin"));
+        // Check string origins
+        if (allowedOrigins.some(allowed => typeof allowed === 'string' && allowed === origin)) {
+            console.log('✅ Origin allowed (string match):', origin);
+            return callback(null, true);
         }
+        // Check regex patterns
+        if (allowedOrigins.some(allowed => allowed instanceof RegExp && allowed.test(origin))) {
+            console.log('✅ Origin allowed (regex match):', origin);
+            return callback(null, true);
+        }
+        console.log('❌ Origin not allowed:', origin);
+        console.log('📋 Allowed origins:', allowedOrigins);
+        return callback(new Error("CORS not allowed for this origin"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token"],
 }));
+// Explicit OPTIONS handler for all routes to ensure CORS works - MUST be before other middleware
+app.options("*", (req, res) => {
+    console.log('🔧 Handling OPTIONS request for:', req.path, 'from origin:', req.headers.origin);
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.sendStatus(200);
+});
+// Add middleware to parse JSON bodies
+app.use(express_1.default.json());
+app.use(express_1.default.urlencoded({ extended: true }));
 // Health check endpoint - let's add this!
 app.get("/api", (req, res) => {
     res.json({

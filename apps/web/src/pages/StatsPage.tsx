@@ -104,12 +104,13 @@ export default function StatsPage() {
     try {
       const token = getStoredToken();
       if (!token) {
-        flash("err", "You’re not signed in (no access token found).");
+        flash("err", "You're not signed in (no access token found).");
         setShowExportConfirm(false);
         return;
       }
 
-      const res = await fetch(`/api/polls/${statId}/export?format=csv`, {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
+      const res = await fetch(`${API_BASE}/polls/${statId}/export?format=csv`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "text/csv,application/json",
