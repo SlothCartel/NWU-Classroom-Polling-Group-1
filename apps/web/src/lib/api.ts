@@ -353,7 +353,7 @@ export const getPollStats = async (id: string | number) => {
 
   return { attendees, perQuestion };
 };
-//New
+
 // Export poll data as CSV
 export const exportPollCsv = async (id: string | number): Promise<Blob> => {
   // Hardcoded URL to bypass environment variable issues
