@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./config/swagger";
 import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/auth";
 import pollRoutes from "./routes/polls";
@@ -107,8 +109,62 @@ app.options("*", (req, res) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'NWU Live Poll API Documentation',
+}));
+
+// API spec as JSON
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 
+
+/**
+ * @openapi
+ * /api:
+ *   get:
+ *     tags:
+ *       - Health & Info
+ *     summary: API information endpoint
+ *     description: Returns API status, version, and available endpoints
+ *     responses:
+ *       200:
+ *         description: API information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "NWU Live Poll API is running"
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 version:
+ *                   type: string
+ *                   example: "1.0.0"
+ *                 endpoints:
+ *                   type: object
+ *                   properties:
+ *                     auth:
+ *                       type: string
+ *                       example: "/api/auth"
+ *                     polls:
+ *                       type: string
+ *                       example: "/api/polls"
+ *                     students:
+ *                       type: string
+ *                       example: "/api/students"
+ */
 // Health check endpoint - let's add this!
 app.get("/api", (req, res) => {
   res.json({
@@ -124,6 +180,32 @@ app.get("/api", (req, res) => {
   });
 });
 
+/**
+ * @openapi
+ * /api/health:
+ *   get:
+ *     tags:
+ *       - Health & Info
+ *     summary: Health check endpoint
+ *     description: Simple health check to verify API is running
+ *     responses:
+ *       200:
+ *         description: API is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "API is running"
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ */
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,

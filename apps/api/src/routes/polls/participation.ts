@@ -8,6 +8,31 @@ import { participationService } from "../../services/participationService";
 const router = Router();
 
 /**
+ * @openapi
+ * /api/polls/participation:
+ *   get:
+ *     tags:
+ *       - Student Participation
+ *     summary: Participation endpoints info
+ *     description: Returns available student participation endpoints
+ *     responses:
+ *       200:
+ *         description: List of available endpoints
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Poll Participation API"
+ *                 endpoints:
+ *                   type: object
+ */
+/**
  * Base participation route (info)
  */
 router.get("/participation", (_req, res) => {
@@ -24,6 +49,42 @@ router.get("/participation", (_req, res) => {
 });
 
 /**
+ * @openapi
+ * /api/polls/code/{joinCode}:
+ *   get:
+ *     tags:
+ *       - Student Participation
+ *     summary: Get poll by join code
+ *     description: Retrieves poll details using a join code. Does not include correct answers. No authentication required.
+ *     parameters:
+ *       - in: path
+ *         name: joinCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 6-character join code
+ *         example: "ABC123"
+ *     responses:
+ *       200:
+ *         description: Poll found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Poll'
+ *       404:
+ *         description: Poll not found with this join code
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+/**
  * Public: fetch poll meta by join code (no correct answers)
  */
 router.get("/code/:joinCode", async (req: Request, res: Response) => {
@@ -35,6 +96,40 @@ router.get("/code/:joinCode", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/polls/join:
+ *   post:
+ *     tags:
+ *       - Student Participation
+ *     summary: Join a poll
+ *     description: Allows a student to join a poll using a join code. Creates a lobby entry so the lecturer can see attendance immediately. No authentication required initially, but student must exist in the database.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/JoinPollRequest'
+ *     responses:
+ *       200:
+ *         description: Successfully joined the poll
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Poll'
+ *       400:
+ *         description: Invalid join code, security code, poll not open, or student already submitted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 /**
  * Public: join (validates code/security; ensures LobbyEntry so lecturer sees attendance immediately)
  */
@@ -56,8 +151,80 @@ router.post(
 );
 
 /**
+ * @openapi
+ * /api/polls/{id}/choices:
+ *   post:
+ *     tags:
+ *       - Student Participation
+ *     summary: Record live answer choice
+ *     description: Records a student's live answer selection for real-time tracking. Can be called multiple times as student changes their answer. Option index -1 means "clear/not answered".
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Poll ID
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - questionId
+ *               - optionIndex
+ *             properties:
+ *               questionId:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 1
+ *                 description: ID of the question being answered
+ *               optionIndex:
+ *                 type: integer
+ *                 minimum: -1
+ *                 maximum: 3
+ *                 example: 2
+ *                 description: Selected option index (0-3) or -1 for unanswered
+ *     responses:
+ *       200:
+ *         description: Choice recorded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Choice recorded"
+ *       400:
+ *         description: Validation error or invalid request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden - Only students can record choices
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+/**
  * Student (auth): record a live choice for a question.
- * - optionIndex -1 means “clear / not answered”
+ * - optionIndex -1 means "clear / not answered"
  * - Upserts a Vote per (question_id, user_id)
  */
 router.post(
@@ -95,6 +262,56 @@ router.post(
   },
 );
 
+/**
+ * @openapi
+ * /api/polls/{id}/submit:
+ *   post:
+ *     tags:
+ *       - Student Participation
+ *     summary: Submit final answers
+ *     description: Submits final answers for grading. Creates a submission record with score and feedback. Student can only submit once per poll. Accepts empty answers array if student never answered.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Poll ID
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SubmitAnswersRequest'
+ *     responses:
+ *       200:
+ *         description: Answers submitted successfully with grading results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SubmitResponse'
+ *       400:
+ *         description: Validation error, already submitted, or poll not live/closed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden - Only students can submit answers
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 /**
  * Student (auth): final submit
  * - Accepts empty answers array (e.g., lecturer ended or student never clicked)

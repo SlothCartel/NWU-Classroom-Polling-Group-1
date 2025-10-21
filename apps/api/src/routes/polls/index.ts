@@ -7,6 +7,32 @@ import analyticsRoutes from "./analytics";
 
 const router = Router();
 
+/**
+ * @openapi
+ * /api/polls/info:
+ *   get:
+ *     tags:
+ *       - Poll Management
+ *     summary: Polls API endpoints info
+ *     description: Returns an overview of all available poll-related endpoints organized by category
+ *     responses:
+ *       200:
+ *         description: List of all poll endpoints
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Polls API"
+ *                 endpoints:
+ *                   type: object
+ *                   description: Categorized list of all poll endpoints
+ */
 // Base polls route - shows available endpoints (for testing)
 router.get("/info", (req, res) => {
   res.json({
