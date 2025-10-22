@@ -54,17 +54,15 @@ The platform was developed to replace tools like **Kahoot!** and **Slido**, offe
 ---
 
 ## 🗂️ Project Structure
-
+```bash
 NWU-Classroom-Polling-Group-1/
 ├── apps/
-│ ├── api/ # Express API (backend)
-│ └── web/ # React frontend
-├── prisma/ # Database schema
-├── docker-compose.yml # Container setup
-└── docs/ # Project documentation
-
-
----
+│   ├── api/             # Express API (backend)
+│   └── web/             # React frontend
+├── prisma/              # Database schema
+├── docker-compose.yml   # Container setup
+└── docs/                # Project documentation
+```
 
 ## 🚀 Getting Started
 
@@ -141,7 +139,7 @@ docker-compose up --build
 5. Environment variables managed securely in .env and deployment dashboards.
 
 📄 Full deployment documentation:
-**docs/deployment-docs.md**
+**[docs/frontend-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/frontend-docs.md)**
 
 ---
 
@@ -158,7 +156,7 @@ docker-compose up --build
 - Maintainability: Strict TypeScript typing, ESLint, and Prettier formatting.
 
 ## 📈 System Architecture
-
+```text
 +-------------+        +-------------------+        +------------------+
 |   Browser   | <----> |   Node.js API     | <----> |   PostgreSQL DB  |
 | (React/Vite)|   WS   | (Express + Socket)|   SQL  |  (Prisma ORM)    |
@@ -166,7 +164,7 @@ docker-compose up --build
         ↑                        ↑
         |                        |
         └──────── Docker / Compose ─────────┘
-
+```
 ## 📚 Documentation
 
 | Type                | Location                                                                                                        |
