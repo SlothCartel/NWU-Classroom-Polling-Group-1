@@ -141,7 +141,7 @@ docker-compose up --build
 5. Environment variables managed securely in .env and deployment dashboards.
 
 📄 Full deployment documentation:
-docs/deployment-docs.md
+**docs/deployment-docs.md**
 
 ---
 
@@ -171,10 +171,9 @@ docs/deployment-docs.md
 
 | Type                | Location                                                                                                        |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Full Technical Docs | [docs/technical-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/technical-docs.md)   |
-| Backend API Docs    | [docs/api-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/api-docs.md)               |
-| Frontend Docs       | [docs/frontend-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/frontend-docs.md)     |
-| Deployment Docs     | [docs/deployment-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/deployment-docs.md) |
+| Backend API Docs    | [docs/api-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/api-docs.md)               |
+| Frontend Docs       | [docs/frontend-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/frontend-docs.md)     |
+| Deployment Docs     | [docs/deployment-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/deployment-docs.m) |
 
 ## 🧑‍💻 Contributors
 
