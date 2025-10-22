@@ -162,7 +162,6 @@ The manual covers:
 ## 🧪 Testing
 
 - Unit and integration tests via Jest (backend) and Vitest (frontend).
-- Stress-tested with 200+ concurrent users using Socket.IO load testing.
 - Docker-based testing ensures consistency across environments.
 
 ## 🧰 Development Principles
