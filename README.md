@@ -112,12 +112,28 @@ docker-compose up --build
 4. View real-time answers and analytics.
 5. Export results as CSV for review.
 
-###👨‍🎓 Student
+### 👨‍🎓 Student
 
 1. Enter join code (no login required).
 2. Participate in the live poll.
 3. Submit responses within time limits.
 4. Instantly view results and feedback.
+
+---
+---
+
+## 📘 User Manual
+
+For a detailed step-by-step guide on how to use NWU Live Poll as a **lecturer or student**, please refer to the full user manual below:
+
+📄 [Download the User Manual (PDF)](https://raw.githubusercontent.com/SlothCartel/NWU-Classroom-Polling-Group-1/main/docs/User%20Manual%20NWU%20Poll.pdf)
+
+The manual covers:
+- Lecturer and student setup guides  
+- How to create and join polls  
+- Real-time dashboard features  
+- Troubleshooting and FAQ  
+- Data privacy and security overview  
 
 ---
 
@@ -171,7 +187,8 @@ docker-compose up --build
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Backend API Docs    | [docs/api-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/api-docs.md)               |
 | Frontend Docs       | [docs/frontend-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/frontend-docs.md)     |
-| Deployment Docs     | [docs/deployment-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/deployment-docs.m) |
+| Deployment Docs     | [docs/deployment-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/deployment-docs.m)  |
+| User Manual         | [docs/User Manual NWU Poll.pdf](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/blob/main/docs/User%20Manual%20NWU%20Poll.pdf)  |
 
 ## 🧑‍💻 Contributors
 
