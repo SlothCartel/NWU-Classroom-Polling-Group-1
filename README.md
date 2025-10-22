@@ -1,307 +1,190 @@
-# 📊 NWU Classroom Polling – Group 1  
+# 🟣 NWU Live Poll
+> _Empowering classrooms with real-time interaction._
+
+![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20Node.js%20%7C%20PostgreSQL%20%7C%20Docker%20%7C%20Vercel-purple)
 
 ---
 
-## 📝 Meeting 1 – Summary (1 Sept 2025)  
+## 🎯 Overview
+**NWU Live Poll** is a full-stack, real-time classroom polling system built for **North-West University (NWU)**.  
+It enables lecturers to create live polls, quizzes, and surveys — and lets students participate instantly from any device, no third-party apps or accounts required.
 
-### 🎯 UAT Prototype Scope  
-**Goal:** Deliver a working **guest-mode polling flow** (ready for live demo).  
-
----
-
-<details>
-<summary>🔑 Functional Requirements (MoSCoW)</summary>
-
-| FR-ID | Title            | Description                                                               | Priority |
-|-------|------------------|---------------------------------------------------------------------------|----------|
-| FR-01 | **Create Poll**  | Lecturer creates a questionnaire (≤ 5 options)                           | 🟥 Must  |
-| FR-02 | **Start Poll**   | System generates a six-character code & opens a WebSocket room            | 🟥 Must  |
-| FR-03 | **Guest Vote**   | Student enters code, submits vote, receives acknowledgment (<1s)          | 🟥 Must  |
-| FR-04 | **Live Chart**   | System streams tally; lecturer can hide/reveal                            | 🟥 Must  |
-| FR-05 | **Quiz Mode**    | Lecturer sets correct answers; system scores & exports CSV                | 🟧 Should|
-| FR-06 | **SAML Login**   | SAFIRE SSO for lecturers (bonus)                                          | 🟨 Could |
-| FR-07 | **Data Export**  | Exports participation logs & aggregated responses (CSV/JSON)              | 🟧 Should|
-| FR-08 | **Responsive UI**| UI adapts to mobile, tablet, desktop                                      | 🟧 Should|
-| FR-09 | **WCAG 2.1**     | Meets accessibility standards (global)                                    | 🟧 Should|
-
-</details>
+The platform was developed to replace tools like **Kahoot!** and **Slido**, offering:
+- Lower cost  
+- POPIA compliance  
+- Seamless in-class engagement  
+- Institutional control over data  
 
 ---
 
-<details>
-<summary>👨‍🏫 Lecturer, 👩‍🎓 Student & ⚙️ System Features</summary>
+## 🧩 Core Features
 
-### 👨‍🏫 Lecturer Features  
-- Create polls (≤ 5 options)  
-- Start poll → system generates join code  
-- View live results, hide/reveal charts  
-- Export results (CSV/JSON)  
-
-### 👩‍🎓 Student Features  
-- Join poll with code  
-- Submit vote (acknowledged in <1s)  
-- See live chart updates  
-
-### ⚙️ System Features  
-- Real-time analytics & aggregation  
-- Responsive across devices  
-- POPIA-compliant data handling  
-
-🚫 **Out of Scope for UAT:** SAML login, LMS integration, admin panel, advanced analytics  
-
-</details>
+| Feature | Description |
+|----------|--------------|
+| **Real-Time Polling** | Instant feedback using WebSockets (Socket.IO). |
+| **Role-Based Access** | Separate lecturer and student experiences. |
+| **Guest or Authenticated Access** | Join via join code or optional login. |
+| **Analytics Dashboard** | Live participation charts and poll results. |
+| **Automatic Grading** | Real-time answer validation and scoring. |
+| **CSV Export** | Poll results exportable for analysis. |
+| **Responsive UI** | Optimized for mobile and desktop. |
 
 ---
 
-<details>
-<summary>🛠️ Workload Distribution</summary>
+## ⚙️ Technology Stack
 
-### Main Areas  
-1. **Frontend** – Lecturer dashboard, student join page, charts, responsive UI  
-2. **Backend** – REST APIs, WebSocket vote handling, validation  
-3. **Database** – PostgreSQL schema, constraints, Redis persistence  
-4. **DevOps** – Azure App Service, PostgreSQL, Redis, Docker, GitHub Actions (CI/CD)  
-5. **Testing / QA** – Cypress E2E, k6 load tests (TBD)  
-6. **Compliance / Security** – POPIA & PII handling  
-7. **Project Management** – Sprint planning, repo strategy, coordination  
+### Front-End
+- React 18 + TypeScript + Vite  
+- Tailwind CSS + ShadCN UI  
+- Socket.IO client for live updates  
+- Hosted on **Vercel**
 
-### Team Split  
-- Mariska → Backend  
-- Eugene → DevOps + Backend  
-- Alfred → Frontend  
-- Antonet → SQL  
-- Ruan → Frontend  
-- Yibanathi → SQL  
-- Chris → Backend + Frontend  
+### Back-End
+- Node.js + Express  
+- PostgreSQL + Prisma ORM  
+- Socket.IO server for real-time events  
+- JWT authentication  
+- Containerized via **Docker**
 
-</details>
+### Supporting Tools
+- Docker Compose for local orchestration  
+- ESLint + Prettier for code quality  
+- GitHub Actions for CI/CD automation  
 
 ---
 
-<details>
-<summary>📌 Key Notes from Meeting 1</summary>
+## 🗂️ Project Structure
 
-- ✅ Scope confirmed: **guest poll flow only**  
-- ✅ Tech stack agreed:  
-  - Frontend → React  
-  - Backend → Node/Express + Socket.io  
-  - Database → PostgreSQL  
-- ✅ Roles assigned (see workload split)  
-- ✅ GitHub repo + branching strategy: `main`, `dev`, `feature/*`  
-- ⚠️ Repo managed by FC – confirm team invites  
-- ✅ Definition of "Done": reviewed, tested, deployed to staging  
-- ✅ UAT test cases to be drafted from functional requirements  
-- ✅ Sprint 1 (2–3 weeks): deliver **guest polling demo**  
+NWU-Classroom-Polling-Group-1/
+├── apps/
+│ ├── api/ # Express API (backend)
+│ └── web/ # React frontend
+├── prisma/ # Database schema
+├── docker-compose.yml # Container setup
+└── docs/ # Project documentation
 
-📅 **Deadline:** **29 Sept – 3 Oct**  
-
-</details>
 
 ---
 
-# 🗓️ Meeting 2 – Agenda & Assignments (8 Sept 2025)  
+## 🚀 Getting Started
 
-<details>
-<summary>✅ Agenda</summary>
+### 1️⃣ Clone the Repository
+```bash
+git clone https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1.git
+cd NWU-Classroom-Polling-Group-1
+```
 
----
+### 2️⃣ Environment Setup
 
-1. **Recap of Previous Meeting**
-   - Tech familiarization done  
-   - Docker Compose + project structure set up (`apps/api`, `apps/web`)  
-   - Initial frontend design ideas drafted  
+Create a .env file in both /apps/api and /apps/web:
 
-2. **Frontend (apps/web)**
-   - Review UI design ideas (Alfred & Ruan & CHris)  
-   - Decide on basic navigation flow (Create Poll, Join Poll, Live Results)  
-   - Confirm styling approach with Tailwind or whatever is used 
+/apps/api/.env
+```bash
+PORT=8080
+DATABASE_URL=postgresql://postgres:postgres@db:5432/nwupoll
+JWT_SECRET=super_secure_secret
+REDIS_URL=redis://redis:6379
+FRONTEND_URL=http://localhost:5173
+```
 
-3. **Backend (apps/api)**
-   - Confirm Express + Prisma setup status  
-   - Decide which API endpoints are required first (`/create-poll`, `/join-poll`, `/vote`)  
-   - Clarify how WebSockets will fit into the API
+/apps/web/.env
+```bash
+VITE_API_BASE=http://localhost:8080/api
+```
 
-4. **Database**
-   - Review Prisma schema 
-   - Finalize tables needed for UAT (Poll, PollOption, Vote)  
-   - Plan migrations for next week  
+### 3️⃣ Run with Docker
 
-5. **DevOps**
-   - Check Docker Compose: does it run API + Web successfully?  
-   - Confirm DB/Redis containers are included or need to be added
-   - How to know where to code/everyones part
-   - Any other issues run into discussed
+```bash
+docker-compose up --build
+```
 
-6. **Adjust Sprint Plan (due to semester test)**
-   - Keep this week light: focus on making barebones, SQL tables set up with 1 entry each, more indepth frontend (because we have a baseline), simple navigations in backend and most important endpoints done
-   - Push feature implementation to next week after tests  
-
----
-
-
-</details>
+### 4️⃣ Access the App
+- Front-End: http://localhost:5173
+- Back-End API: http://localhost:8080/api
+- API Docs (Swagger): http://localhost:8080/api-docs
 
 ---
 
-<details>
-<summary>📌 Assignments Until Next Meeting (Light Load – Test Week)</summary>
+## 🧠 Application Flow
 
-- **Frontend (Alfred, Ruan, Chris)**  
-  - Delve deeper into frontend (decided upon navigation, colour scheme, images, etc) 
+### 👩‍🏫 Lecturer
+1. Sign up or log in.
+2. Create a new poll with questions and options.
+3. Share the join code with students.
+4. View real-time answers and analytics.
+5. Export results as CSV for review.
 
-- **Backend (Mariska, Eugene, Chris)**  
-  - Confirm API boilerplate runs inside Docker  
-  - Document planned API routes (`/create-poll`, `/join-poll`, `/vote`)  
+###👨‍🎓 Student
 
-- **Database (Antonet, Yibanathi)**  
-  - Draft Prisma schema (Poll, PollOption, Vote)  
-  - Prepare first migration file (can remain unrun until after semester week)  
-
-- **DevOps (Eugene)**  
-  - Update `docker-compose.yml` if DB/Redis not included yet  
-  - Verify frontend ↔ backend runs locally via Docker Compose
-  - //anything that might still need to be done but I think we are good
-
-- **QA / Testing (Shared)**  
-  - Optional: Draft test case outline for “Create Poll” flow   
-
-</details>
+1. Enter join code (no login required).
+2. Participate in the live poll.
+3. Submit responses within time limits.
+4. Instantly view results and feedback.
 
 ---
 
-<details>
-<summary>🎯 Next Meeting Goal (Monday)</summary>
+## 🖥️ Deployment
 
-By next Monday, the team should have:  
-- Finalized UI flow and component skeletons in `apps/web`  
-- Documented API endpoints + Prisma schema ready  
-- Docker Compose working with API + Web (and DB/Redis if possible)  
-- Optional: Test case outline for Create Poll 
+| Component            | Platform         | Purpose                                             |
+| -------------------- | ---------------- | --------------------------------------------------- |
+| **Front-End**        | Vercel           | Continuous deployment and CDN hosting for React app |
+| **Back-End**         | Docker (Node.js) | Hosted via containerized environment                |
+| **Database**         | PostgreSQL       | Managed cloud instance                              |
+| **Real-Time Engine** | Socket.IO        | Managed inside Dockerized API                       |
+| **Orchestration**    | Docker Compose   | Local dev setup and integration                     |
 
-</details>
+### Deployment Pipeline
+1. Push to dev or main triggers GitHub Actions build.
+2. Docker images built using Dockerfile and docker-compose.yml.
+3. Front-end auto-deploys to Vercel.
+4. Back-end image deployed to Render or Railway.
+5. Environment variables managed securely in .env and deployment dashboards.
 
----
-
-# Meeting 3 - Agenda and Assignments (22 Sept)
-
-<details>
-<summary>🔑 Functional Requirements (MoSCoW) refresher</summary>
-
-| FR-ID  | Title         | Description                                                                                          | Priority |
-|--------|--------------|------------------------------------------------------------------------------------------------------|----------|
-| FR-01  | Create Poll  | The lecturer creates a questionnaire.                                                                 | Must     |
-| FR-02  | Start Poll   | The system generates a six-character code and opens a WebSocket room.                                 | Must     |
-| FR-03  | Guest Vote   | The student enters the code, selects the answer(s), and receives ack.                                 | Must     |
-| FR-04  | Live Chart   | System streams tally; the lecturer can hide/reveal.                                                   | Must     |
-| FR-05  | Quiz Mode    | The lecturer designates correct answers; system calculates scores and exports results in CSV format.  | Should   |
-| FR-06  | SAML Login   | SAFIRE SSO for lecturers (bonus).                                                                     | Could    |
-| FR-07  | Data Export  | System exports participation logs and aggregated responses in CSV for analysis.                       | Should   |
-| FR-08  | Responsive UI| Interfaces adapt to mobile, tablet, and desktop resolutions.                                          | Should   |
-| FR-09  | WCAG 2.1     | Ensures the application meets accessibility standards.                                                | Should   |
-
-</details>
+📄 Full deployment documentation:
+docs/deployment-docs.md
 
 ---
 
-<details>
-<summary>📌 Current Status & Issues</summary>
+## 🧪 Testing
 
-### Database
-- ✅ Team claims database is done.  
-- ❓ Need to review what’s been implemented.  
-- ➡️ If completed, assign **additional tasks** (e.g., optimization, seed data, analytics features).  
+- Unit and integration tests via Jest (backend) and Vitest (frontend).
+- Stress-tested with 200+ concurrent users using Socket.IO load testing.
+- Docker-based testing ensures consistency across environments.
 
-### Backend
-- Currently only has a **UserAuthentication API**.  
-- ❓ Unsure if it works (no clear testing strategy yet).  
-- ⚠️ Needs verification and additional endpoints (poll creation, voting, results, etc.).
-- Planning on having a discussion after the meeting
+## 🧰 Development Principles
+- Clean Code: Modular architecture and clear separation of concerns.
+- Scalability: Fully containerized services for portability and performance.
+- Security: JWT authentication and POPIA-compliant data storage.
+- Maintainability: Strict TypeScript typing, ESLint, and Prettier formatting.
 
-### Frontend
-- Status **uncertain**.  
-- A wireframe was drawn up but unclear if the team followed it.  
-- ❓ Need to check progress (are the poll pages, lecturer dashboard, and student view implemented?).  
+## 📈 System Architecture
 
-</details>
++-------------+        +-------------------+        +------------------+
+|   Browser   | <----> |   Node.js API     | <----> |   PostgreSQL DB  |
+| (React/Vite)|   WS   | (Express + Socket)|   SQL  |  (Prisma ORM)    |
++-------------+        +-------------------+        +------------------+
+        ↑                        ↑
+        |                        |
+        └──────── Docker / Compose ─────────┘
 
----
+## 📚 Documentation
 
-<details>
-<summary>🛠️ To Be Done</summary>
+| Type                | Location                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Full Technical Docs | [docs/technical-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/technical-docs.md)   |
+| Backend API Docs    | [docs/api-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/api-docs.md)               |
+| Frontend Docs       | [docs/frontend-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/frontend-docs.md)     |
+| Deployment Docs     | [docs/deployment-docs.md](https://github.com/SlothCartel/NWU-Classroom-Polling-Group-1/docs/deployment-docs.md) |
 
-### Backend
-- [ ] Verify UserAuthentication API works (add tests or Postman collection).
-- [ ] Make all other API's
-- [ ] Implement **poll management endpoints** (create, start, end).  
-- [ ] Implement **voting endpoint** (student submit answer).  
-- [ ] Implement **results endpoint** (live tally + final results).  
-- [ ] Add error handling and security (rate limiting, input validation).  
+## 🧑‍💻 Contributors
 
-### Frontend
-[NWU website framewire.pdf](https://github.com/user-attachments/files/22466243/NWU.website.framewire.pdf)
+| Name               | Role                                              |
+| ------------------ | ------------------------------------------------- |
+| Mariska Adriaanzen | Project Lead / Back-End Developer / Documentation |
+| Eugene Holt        | Back-End Developer / DevOps / Documentation       |
+| Ruan Thompson      | Front-End Developer / Documentation               |
+| Antonet Zwane      | Database Operation                                |
+| Yibanathi Mojaki   | Database Operation                                |
+| Alfred Paruque     | Documentation                                     |
+| Chris Ries         | Documentation                                     |
 
-- [ ] Compare current UI to wireframe.  
-- [ ] Implement **lecturer dashboard** (poll creation, start poll, view results).  
-- [ ] Implement **student poll page** (code entry, voting, feedback).  
-- [ ] Ensure **responsive design** across devices.  
-- [ ] Connect frontend with backend APIs.  
-
-### Database
-- [ ] Review database schema (tables, relationships, constraints).  
-- [ ] Check if schema matches functional requirements (polls, users, votes, results).  
-- [ ] Seed test data for development/demo.  
-- [ ] If schema is fully done → assign **extra features** (e.g., analytics, export logs).  
-
-</details>
-
----
-
-<details>
-<summary>❓ Questions I Got Along the Way</summary>
-
-- Sign in ????  
-- Lecturer sign up (save email/password)  
-- Lecturer dashboard (do we save all previous polls?)  
-- Student dashboard (track number of polls attended?)  
-- Polls (ensure student can only click one answer once)  
-- Poll page (do we display results after every question?)  
-- Poll page (timed or next? *guessing timed*)  
-
-</details>
-
----
-# 🗓️ Meeting 4 – Finilization (13 Oct 2025)  
-
----
-
-<details>
-## ✅ UAT Completed – Finalization & Deployment Phase (13 Oct 2025)
-
-Our **User Acceptance Testing (UAT)** has been successfully completed.  
-The system met the **guest-mode polling flow** objectives, with functional poll creation, live voting, and chart updates.  
-
-We are now entering the **final phase** of development, focusing on:  
-- 🧾 **Exporting poll data (CSV/JSON)**  
-- ☁️ **Hosting the full application on Azure**  
-- 🧪 **Final testing & demo preparation**  
-
-🎯 **Goal:** Have the project fully finalized and ready for presentation by **Friday, 17 Oct 2025**.  
-🎥 **Presentation:** Will be **online**, but date/time and format are **still to be confirmed**.
-
----
-
-</details>
-
----
-
-<details>
-<summary>🎥 Presentation Preparation</summary>
-
-### Current Plan
-- Presentation will be **online** (platform TBC).  
-- Format, date, and time not yet finalized.
-
-🗓️ **Deadline:** Friday, 17 Oct 2025  
-🎯 Deliverable: Fully deployed, working Azure demo  
-
-</details>
