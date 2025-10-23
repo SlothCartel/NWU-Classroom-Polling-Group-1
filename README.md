@@ -1,6 +1,8 @@
 # 🟣 NWU Live Poll
 > _Empowering classrooms with real-time interaction._
 
+[![Visit Site](https://img.shields.io/badge/🌐_Live_Site-nwu--live--poll--web.vercel.app-7B61FF?style=for-the-badge)](https://nwu-live-poll-web.vercel.app)
+
 ![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20Node.js%20%7C%20PostgreSQL%20%7C%20Docker%20%7C%20Vercel-purple)
 
 ---
